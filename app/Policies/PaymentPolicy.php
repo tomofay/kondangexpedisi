@@ -24,7 +24,11 @@ class PaymentPolicy
             return true;
         }
 
-        if ($user->role === 'manager' || $user->role === 'kasir') {
+        if ($user->role === 'manager') {
+            return true;
+        }
+
+        if ($user->role === 'kasir') {
             return (int) $payment->shipment?->branch_id === (int) $user->branch_id;
         }
 

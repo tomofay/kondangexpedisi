@@ -19,6 +19,10 @@ class AuditLog extends Model
         'before_state',
         'after_state',
         'notes',
+        'source',
+        'is_manual_correction',
+        'correction_reference',
+        'changed_fields',
     ];
 
     protected function casts(): array
@@ -26,6 +30,8 @@ class AuditLog extends Model
         return [
             'before_state' => 'array',
             'after_state' => 'array',
+            'changed_fields' => 'array',
+            'is_manual_correction' => 'boolean',
         ];
     }
 

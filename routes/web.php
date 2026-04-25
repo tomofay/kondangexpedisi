@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardDataController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPortalController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
@@ -68,6 +69,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/summary', [ReportController::class, 'summary'])->name('reports.summary');
         Route::get('/reports/summary/export', [ReportController::class, 'summaryExport'])->name('reports.summary.export');
         Route::get('/reports/branch-performance', [ReportController::class, 'branchPerformance'])->name('reports.branch-performance');
+        Route::get('/reports/branch/{branch}', [ReportController::class, 'branchDetail'])->name('reports.branch-detail');
         Route::get('/reports/branch-performance/export', [ReportController::class, 'branchPerformanceExport'])->name('reports.branch-performance.export');
         Route::get('/reports/courier-performance', [ReportController::class, 'courierPerformance'])->name('reports.courier-performance');
         Route::get('/reports/payment-overview', [ReportController::class, 'paymentOverview'])->name('reports.payment-overview');
@@ -76,6 +78,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/courier-earnings', [ReportController::class, 'courierEarnings'])->name('reports.courier-earnings');
         Route::get('/reports/courier-earnings/export', [ReportController::class, 'courierEarningsExport'])->name('reports.courier-earnings.export');
 
+        Route::get('/audit-logs/manual-corrections', [AuditLogController::class, 'manualCorrections'])->name('audit-logs.manual-corrections');
         Route::resource('audit-logs', AuditLogController::class)->only(['index', 'show']);
 
         Route::resource('customers', CustomerController::class)->except(['create', 'edit']);
@@ -88,10 +91,18 @@ Route::middleware('auth')->group(function () {
         Route::resource('landing-page-contents', LandingPageContentController::class)->except(['create', 'edit']);
     });
 
-    Route::middleware('role:admin')->group(function () {
+    Route::middleware('role:manager,admin')->group(function () {
         Route::resource('users', UserManagementController::class)->except(['index', 'create', 'edit']);
         Route::get('/admin/trash', [AdminTrashController::class, 'index'])->name('admin.trash.index');
         Route::post('/admin/trash/{type}/{id}/restore', [AdminTrashController::class, 'restore'])->name('admin.trash.restore');
+    });
+
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::get('/error-logs/dead-letter-monitoring', [ErrorLogController::class, 'deadLetterMonitoring'])->name('error-logs.dead-letter-monitoring');
+        Route::get('/error-logs/unresolved-queue', [ErrorLogController::class, 'unresolvedQueue'])->name('error-logs.unresolved-queue');
+        Route::resource('error-logs', ErrorLogController::class)->only(['index', 'show']);
+        Route::post('/error-logs/{errorLog}/retry', [ErrorLogController::class, 'retry'])->name('error-logs.retry');
+        Route::post('/error-logs/{errorLog}/resolve', [ErrorLogController::class, 'resolve'])->name('error-logs.resolve');
     });
 
     Route::middleware('role:customer')->group(function () {

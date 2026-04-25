@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Shipment;
 use App\Services\AuditLogService;
+use App\Services\OperationalIssueService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use App\Services\ShipmentService;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -14,6 +17,8 @@ use Picqer\Barcode\BarcodeGeneratorPNG;
 
 class ShipmentController extends Controller
 {
+    private ?bool $hasDestinationBranchColumn = null;
+
     /**
      * Display a listing of the resource.
      */
@@ -30,7 +35,7 @@ class ShipmentController extends Controller
 
         $query = Shipment::query()->with(['branch', 'destinationBranch', 'courier', 'status']);
 
-        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+        if (in_array($actor?->role, ['kasir'], true)) {
             $managerBranch = Branch::query()->find($actor->branch_id);
 
             if (! $managerBranch || ! $managerBranch->is_active) {
@@ -77,7 +82,7 @@ class ShipmentController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request, ShipmentService $shipmentService)
+    public function store(Request $request, ShipmentService $shipmentService, OperationalIssueService $operationalIssueService)
     {
         $this->authorize('create', Shipment::class);
 
@@ -99,23 +104,76 @@ class ShipmentController extends Controller
             'total_volume' => ['nullable', 'numeric', 'min:0'],
             'insurance_amount' => ['nullable', 'numeric', 'min:0'],
             'admin_fee' => ['nullable', 'numeric', 'min:0'],
+            'subtotal_amount' => ['nullable', 'numeric', 'min:0'],
+            'total_amount' => ['nullable', 'numeric', 'min:0'],
             'is_cod' => ['sometimes', 'boolean'],
             'cod_amount' => ['nullable', 'numeric', 'min:0'],
             'estimated_delivery_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
+            'manual_override' => ['sometimes', 'boolean'],
+            'manual_override_reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $manualOverride = (bool) ($validated['manual_override'] ?? false);
+
+        if ($manualOverride && empty($validated['manual_override_reason'])) {
+            throw ValidationException::withMessages([
+                'manual_override_reason' => 'Alasan override manual wajib diisi.',
+            ]);
+        }
+
+        if ($manualOverride) {
+            foreach (['subtotal_amount', 'insurance_amount', 'admin_fee', 'total_amount'] as $field) {
+                if (! array_key_exists($field, $validated)) {
+                    throw ValidationException::withMessages([
+                        $field => 'Field ini wajib diisi ketika menggunakan manual override.',
+                    ]);
+                }
+            }
+        }
 
         if (empty($validated['zone_id']) && ! empty($validated['destination_branch_id'])) {
             $validated['zone_id'] = Branch::query()->whereKey($validated['destination_branch_id'])->value('zone_id');
         }
 
-        if (empty($validated['zone_id'])) {
+        if (! $manualOverride && empty($validated['zone_id'])) {
             throw ValidationException::withMessages([
                 'zone_id' => 'Zona tujuan tidak ditemukan. Pilih cabang tujuan yang memiliki zona aktif.',
             ]);
         }
 
-        $shipment = $shipmentService->createShipment($validated, $request->user());
+        try {
+            if ($manualOverride) {
+                $shipment = DB::transaction(function () use ($validated, $request, $shipmentService, $operationalIssueService) {
+                    $shipment = $shipmentService->createShipment(array_merge($validated, [
+                        'subtotal_amount' => $validated['subtotal_amount'],
+                        'insurance_amount' => $validated['insurance_amount'],
+                        'admin_fee' => $validated['admin_fee'],
+                        'total_amount' => $validated['total_amount'],
+                    ]), $request->user());
+
+                    return $operationalIssueService->applyShipmentManualOverride(
+                        $shipment,
+                        $request->user(),
+                        [
+                            'subtotal_amount' => $validated['subtotal_amount'],
+                            'insurance_amount' => $validated['insurance_amount'],
+                            'admin_fee' => $validated['admin_fee'],
+                            'total_amount' => $validated['total_amount'],
+                        ],
+                        $validated['manual_override_reason']
+                    );
+                });
+            } else {
+                $shipment = $shipmentService->createShipment($validated, $request->user());
+            }
+        } catch (\Throwable $throwable) {
+            $operationalIssueService->recordError('shipment', 'Shipment gagal dibuat.', ['payload' => $validated], $request->user(), $throwable, 'critical');
+
+            return response()->json([
+                'message' => 'Shipment gagal dibuat.',
+            ], 500);
+        }
 
         return response()->json([
             'message' => 'Shipment berhasil dibuat.',
@@ -176,11 +234,14 @@ class ShipmentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Shipment $shipment, ShipmentService $shipmentService, AuditLogService $auditLogService)
+    public function update(Request $request, Shipment $shipment, ShipmentService $shipmentService, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService)
     {
         $this->authorize('update', $shipment);
 
+        $supportsDestinationBranch = $this->supportsDestinationBranchColumn();
+
         $before = $shipment->only([
+            'branch_id',
             'destination_branch_id',
             'courier_id',
             'vehicle_id',
@@ -205,6 +266,7 @@ class ShipmentController extends Controller
         ]);
 
         $validated = $request->validate([
+            'branch_id' => ['sometimes', 'exists:branches,id'],
             'destination_branch_id' => ['nullable', 'exists:branches,id'],
             'courier_id' => ['nullable', 'exists:users,id'],
             'vehicle_id' => ['nullable', 'exists:vehicles,id'],
@@ -221,19 +283,49 @@ class ShipmentController extends Controller
             'total_volume' => ['nullable', 'numeric', 'min:0'],
             'insurance_amount' => ['nullable', 'numeric', 'min:0'],
             'admin_fee' => ['nullable', 'numeric', 'min:0'],
+            'subtotal_amount' => ['nullable', 'numeric', 'min:0'],
+            'total_amount' => ['nullable', 'numeric', 'min:0'],
             'estimated_delivery_at' => ['nullable', 'date'],
             'delivered_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
+            'manual_override' => ['sometimes', 'boolean'],
+            'manual_override_reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $manualOverride = (bool) ($validated['manual_override'] ?? false);
+
+        if ($manualOverride && empty($validated['manual_override_reason'])) {
+            throw ValidationException::withMessages([
+                'manual_override_reason' => 'Alasan override manual wajib diisi.',
+            ]);
+        }
+
+        if (! $manualOverride && (array_key_exists('subtotal_amount', $validated) || array_key_exists('total_amount', $validated))) {
+            throw ValidationException::withMessages([
+                'manual_override' => 'Gunakan manual override jika ingin mengubah subtotal atau total secara manual.',
+            ]);
+        }
+
+        if (array_key_exists('status_id', $validated)) {
+            throw ValidationException::withMessages([
+                'status_id' => 'Status shipment hanya boleh diubah melalui prosedur transisi status.',
+            ]);
+        }
 
         if (! empty($validated['destination_branch_id'])) {
             $validated['zone_id'] = Branch::query()->whereKey($validated['destination_branch_id'])->value('zone_id');
         }
 
-        $amountFields = array_intersect_key($validated, array_flip(['destination_branch_id', 'zone_id', 'service_type', 'total_weight_kg', 'insurance_amount', 'admin_fee']));
+        if (! $supportsDestinationBranch) {
+            unset($validated['destination_branch_id']);
+        }
 
-        if (! empty($amountFields)) {
-            $recalculated = $shipmentService->calculateTotalAmount(array_merge($shipment->only(['branch_id']), [
+        $amountFields = array_intersect_key($validated, array_flip(['branch_id', 'destination_branch_id', 'zone_id', 'service_type', 'total_weight_kg', 'insurance_amount', 'admin_fee']));
+
+        if (! empty($amountFields) && ! $manualOverride) {
+            $recalculated = $shipmentService->calculateTotalAmount(array_merge([
+                'branch_id' => $validated['branch_id'] ?? $shipment->branch_id,
+            ], [
                 'zone_id' => $validated['zone_id'] ?? $shipment->zone_id,
                 'service_type' => $validated['service_type'] ?? $shipment->service_type,
                 'total_weight_kg' => $validated['total_weight_kg'] ?? $shipment->total_weight_kg,
@@ -251,7 +343,30 @@ class ShipmentController extends Controller
                 ->update(['amount' => $recalculated['total_amount']]);
         }
 
+        if ($manualOverride) {
+            $manualAmountFields = array_intersect_key($validated, array_flip([
+                'subtotal_amount',
+                'insurance_amount',
+                'admin_fee',
+                'total_amount',
+            ]));
+
+            if (count($manualAmountFields) !== 4) {
+                throw ValidationException::withMessages([
+                    'manual_override' => 'Semua field biaya wajib diisi ketika manual override aktif.',
+                ]);
+            }
+
+            $shipment = $operationalIssueService->applyShipmentManualOverride(
+                $shipment,
+                $request->user(),
+                $manualAmountFields,
+                $validated['manual_override_reason']
+            );
+        }
+
         $shipment->fill(array_intersect_key($validated, array_flip([
+            'branch_id',
             'destination_branch_id',
             'courier_id',
             'vehicle_id',
@@ -308,6 +423,17 @@ class ShipmentController extends Controller
         ]);
     }
 
+    private function supportsDestinationBranchColumn(): bool
+    {
+        if ($this->hasDestinationBranchColumn !== null) {
+            return $this->hasDestinationBranchColumn;
+        }
+
+        $this->hasDestinationBranchColumn = Schema::hasColumn('shipments', 'destination_branch_id');
+
+        return $this->hasDestinationBranchColumn;
+    }
+
     public function assignCourier(Request $request, Shipment $shipment, ShipmentService $shipmentService)
     {
         $this->authorize('update', $shipment);
@@ -338,14 +464,30 @@ class ShipmentController extends Controller
             'status_code' => ['required', 'string', 'max:40'],
             'location' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
+            'force_transition' => ['sometimes', 'boolean'],
+            'override_reason' => ['nullable', 'string', 'max:255'],
         ]);
+
+        if (! empty($validated['force_transition']) && $request->user()?->role !== 'admin') {
+            throw ValidationException::withMessages([
+                'force_transition' => 'Hanya admin yang boleh melakukan override status final.',
+            ]);
+        }
+
+        if (! empty($validated['force_transition']) && empty($validated['override_reason'])) {
+            throw ValidationException::withMessages([
+                'override_reason' => 'Alasan override wajib diisi.',
+            ]);
+        }
 
         $shipment = $shipmentService->transitionStatus(
             $shipment,
             $validated['status_code'],
             $request->user()?->id,
             $validated['location'] ?? null,
-            $validated['notes'] ?? null
+            $validated['notes'] ?? null,
+            (bool) ($validated['force_transition'] ?? false),
+            $validated['override_reason'] ?? null
         );
 
         return response()->json([

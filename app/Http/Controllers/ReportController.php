@@ -64,6 +64,72 @@ class ReportController extends Controller
         return response()->json($branches);
     }
 
+    public function branchDetail(Request $request, Branch $branch): JsonResponse
+    {
+        [$fromDate, $untilDate] = $this->resolveDateRange($request);
+
+        $shipmentQuery = Shipment::query()->where('branch_id', $branch->id)
+            ->when($fromDate || $untilDate, function ($query) use ($fromDate, $untilDate) {
+                $this->applyDateRange($query, 'created_at', $fromDate, $untilDate);
+            });
+
+        $paymentQuery = Payment::query()->whereHas('shipment', fn ($q) => $q->where('branch_id', $branch->id))
+            ->when($fromDate || $untilDate, function ($query) use ($fromDate, $untilDate) {
+                $this->applyDateRange($query, 'created_at', $fromDate, $untilDate);
+            });
+
+        $shipmentsTotal = $shipmentQuery->count();
+
+        $shipmentsByStatus = (clone $shipmentQuery)
+            ->selectRaw('shipment_statuses.code as code, shipment_statuses.name as name, COUNT(shipments.id) as total')
+            ->join('shipment_statuses', 'shipment_statuses.id', '=', 'shipments.status_id')
+            ->groupBy('shipment_statuses.code', 'shipment_statuses.name')
+            ->get();
+
+        $revenueTotal = (float) $paymentQuery->where('status', 'settlement')->sum('amount');
+        $paymentsPending = (float) $paymentQuery->where('status', 'pending')->sum('amount');
+
+        $recentShipments = (clone $shipmentQuery)
+            ->with(['status', 'courier'])
+            ->latest('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'tracking_number' => $s->tracking_number,
+                'status' => $s->status?->name,
+                'courier' => $s->courier?->name,
+                'created_at' => $s->created_at,
+            ]);
+
+        $topCouriers = User::query()
+            ->where('role', 'courier')
+            ->whereHas('assignedShipments', fn ($q) => $q->where('branch_id', $branch->id)->whereHas('status', fn ($q2) => $q2->where('code', 'delivered')))
+            ->withCount(['assignedShipments as delivered_count' => fn ($q) => $q->where('branch_id', $branch->id)->whereHas('status', fn ($q2) => $q2->where('code', 'delivered'))])
+            ->orderByDesc('delivered_count')
+            ->limit(5)
+            ->get()
+            ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'delivered' => $c->delivered_count]);
+
+        $vehiclesCount = \App\Models\Vehicle::query()->where('branch_id', $branch->id)->count();
+        $usersCount = \App\Models\User::query()->where('branch_id', $branch->id)->count();
+
+        return response()->json([
+            'id' => $branch->id,
+            'code' => $branch->code,
+            'name' => $branch->name,
+            'period' => ['from' => $fromDate, 'until' => $untilDate],
+            'shipments_total' => $shipmentsTotal,
+            'shipments_by_status' => $shipmentsByStatus,
+            'revenue_total' => $revenueTotal,
+            'payments_pending' => $paymentsPending,
+            'recent_shipments' => $recentShipments,
+            'top_couriers' => $topCouriers,
+            'vehicles_count' => $vehiclesCount,
+            'users_count' => $usersCount,
+        ]);
+    }
+
     public function courierPerformance(Request $request): JsonResponse
     {
         [$fromDate, $untilDate] = $this->resolveDateRange($request);

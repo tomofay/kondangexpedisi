@@ -21,7 +21,7 @@ class UserManagementController extends Controller
 
         $query = User::query()->with('branch');
 
-        if ($actor?->role === 'manager') {
+        if ($actor?->role === 'kasir') {
             $managerBranch = Branch::query()->find($actor->branch_id);
 
             if (! $managerBranch || ! $managerBranch->is_active) {

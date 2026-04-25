@@ -28,7 +28,11 @@ class ShipmentPolicy
             return (int) $shipment->courier_id === (int) $user->id;
         }
 
-        if ($user->role === 'manager' || $user->role === 'kasir') {
+        if ($user->role === 'manager') {
+            return true;
+        }
+
+        if ($user->role === 'kasir') {
             return (int) $shipment->branch_id === (int) $user->branch_id;
         }
 
@@ -56,8 +60,11 @@ class ShipmentPolicy
             return (int) $shipment->courier_id === (int) $user->id;
         }
 
-        return in_array($user->role, ['kasir', 'manager'], true)
-            && (int) $shipment->branch_id === (int) $user->branch_id;
+        if ($user->role === 'manager') {
+            return true;
+        }
+
+        return $user->role === 'kasir' && (int) $shipment->branch_id === (int) $user->branch_id;
     }
 
     /**

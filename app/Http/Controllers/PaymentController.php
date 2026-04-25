@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Payment;
 use App\Services\AuditLogService;
+use App\Services\OperationalIssueService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 
 class PaymentController extends Controller
@@ -26,7 +28,7 @@ class PaymentController extends Controller
 
         $query = Payment::query()->with(['shipment', 'processor']);
 
-        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+        if (in_array($actor?->role, ['kasir'], true)) {
             $managerBranch = Branch::query()->find($actor->branch_id);
 
             if (! $managerBranch || ! $managerBranch->is_active) {
@@ -123,7 +125,7 @@ class PaymentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Payment $payment, AuditLogService $auditLogService)
+    public function update(Request $request, Payment $payment, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService)
     {
         $this->authorize('update', $payment);
 
@@ -133,9 +135,28 @@ class PaymentController extends Controller
             'status' => ['nullable', Rule::in(['pending', 'settlement', 'deny', 'expire', 'cancel', 'refund', 'failed'])],
             'method' => ['nullable', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet', 'cod'])],
             'notes' => ['nullable', 'string'],
+            'manual_override' => ['sometimes', 'boolean'],
+            'manual_override_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $payment->update($validated);
+        $manualOverride = (bool) ($validated['manual_override'] ?? false);
+
+        if ($manualOverride && empty($validated['manual_override_reason'])) {
+            throw ValidationException::withMessages([
+                'manual_override_reason' => 'Alasan override manual wajib diisi.',
+            ]);
+        }
+
+        if ($manualOverride) {
+            $payment = $operationalIssueService->applyPaymentManualOverride(
+                $payment,
+                $request->user(),
+                ['status' => $validated['status'] ?? $payment->status],
+                $validated['manual_override_reason']
+            );
+        } else {
+            $payment->update($validated);
+        }
 
         $auditLogService->record(
             'payment.update',

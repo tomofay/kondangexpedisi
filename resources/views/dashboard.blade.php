@@ -371,7 +371,7 @@
 
         <div class="menu-wrap">
             <button class="menu-btn active" data-view="ringkasan"><i class="bi bi-speedometer2"></i>Overview</button>
-            <button class="menu-btn" data-view="governance"><i class="bi bi-shield-lock"></i>Governance</button>
+            <!-- <button class="menu-btn" data-view="governance"><i class="bi bi-shield-lock"></i>Governance</button> -->
             <button class="menu-btn" data-view="zona"><i class="bi bi-globe-asia-australia"></i>Zona</button>
             <button class="menu-btn" data-view="kartu-tarif"><i class="bi bi-cash-coin"></i>Kartu Tarif</button>
             <button class="menu-btn" data-view="cabang"><i class="bi bi-diagram-3"></i>Cabang</button>
@@ -694,8 +694,13 @@
         </section>
 
         <section id="view-cabang" class="hidden-view">
-            <h5 class="section-title">Manajemen Cabang</h5>
-            <div class="crud-grid">
+            <h5 class="section-title">Performa & Manajemen Cabang</h5>
+            
+            <!-- Performance Section -->
+            <div id="branchPerformanceSection"></div>
+
+            <!-- CRUD Section -->
+            <div class="crud-grid mt-4">
                 <div class="surface-box">
                     <h6 class="mb-3">Form Cabang</h6>
                     <form id="formCabang" class="row g-2">
@@ -1076,7 +1081,7 @@
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     const ROLE_VIEWS = {
         admin: ['ringkasan', 'governance', 'zona', 'kartu-tarif', 'cabang', 'kendaraan', 'user', 'shipment', 'payment', 'landing-content'],
-        manager: ['ringkasan', 'kendaraan', 'user', 'shipment', 'payment'],
+        manager: ['ringkasan', 'cabang', 'kendaraan', 'user', 'shipment', 'payment'],
         kasir: ['ringkasan', 'shipment', 'payment'],
         courier: ['ringkasan', 'shipment'],
     };
@@ -1484,13 +1489,13 @@
 
                 if (view === 'zona') await loadZones();
                 if (view === 'kartu-tarif') await loadRateCards();
-                if (view === 'cabang') await loadBranches();
+                if (view === 'cabang') await Promise.all([loadBranchPerformance(), loadBranches()]);
                 if (view === 'kendaraan') await loadVehicles();
                 if (view === 'user') await loadUsersCrud();
                 if (view === 'shipment') await loadShipmentsCrud();
                 if (view === 'payment') await loadPaymentsCrud();
                 if (view === 'landing-content') await loadLandingContentsCrud();
-                if (view === 'governance') await loadGovernanceData();
+                // if (view === 'governance') await loadGovernanceData();
             });
         });
     }
@@ -1606,82 +1611,64 @@
     }
 
     function renderManagerRingkasan(payload) {
-        const recentShipments = payload.recent_shipments || [];
-        const recentPayments = payload.recent_payments || [];
         const statusBreakdown = payload.status_breakdown || [];
-
-        const shipmentRows = recentShipments.map((item) => `
-            <tr>
-                <td>${item.tracking_number || '-'}</td>
-                <td>${item.recipient_name || '-'}</td>
-                <td>${renderStatusBadge(item.status?.name || '-', item.status?.code || item.status?.name)}</td>
-                <td>${item.branch?.name || '-'}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="4" class="text-center text-muted py-3">Belum ada data shipment terbaru.</td></tr>';
-
-        const paymentRows = recentPayments.map((item) => `
-            <tr>
-                <td>${item.shipment?.tracking_number || item.shipment_id || '-'}</td>
-                <td>${item.method || '-'}</td>
-                <td>${renderStatusBadge(item.status || '-', item.status)}</td>
-                <td>${formatCurrency(item.amount || 0)}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="4" class="text-center text-muted py-3">Belum ada data payment terbaru.</td></tr>';
+        const branchPerformance = payload.branch_performance || {};
+        const branchRanking = branchPerformance.ranking || [];
+        const trackingsRecent = payload.trackings_recent || [];
 
         const statusRows = statusBreakdown.map((item) => `
             <tr>
                 <td>${item.name || '-'}</td>
                 <td>${formatNumber(item.total || 0)}</td>
             </tr>
-        `).join('') || '<tr><td colspan="2" class="text-center text-muted py-3">Belum ada status shipment.</td></tr>';
+        `).join('') || '<tr><td colspan="2" class="text-center text-muted py-3">-</td></tr>';
+
+        const trackingRows = trackingsRecent.slice(0, 5).map((t) => `
+            <tr>
+                <td><small>${t.shipment?.tracking_number || '-'}</small></td>
+                <td><small>${t.status?.name || '-'}</small></td>
+                <td><small>${new Date(t.event_at).toLocaleDateString('id-ID')}</small></td>
+            </tr>
+        `).join('') || '<tr><td colspan="3" class="text-center text-muted py-2">-</td></tr>';
+
+        const branchRows = branchRanking.slice(0, 5).map((b) => `
+            <tr>
+                <td><strong>${b.name}</strong></td>
+                <td>${formatNumber(b.shipment_volume || 0)}</td>
+                <td>${formatCurrency(b.revenue_settled || 0)}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="3" class="text-center text-muted py-2">-</td></tr>';
 
         document.getElementById('view-ringkasan').innerHTML = `
-            <div class="d-flex justify-content-end gap-2 mb-3">
-                <button class="btn btn-sm btn-kondang" onclick="exportPrimaryData()">Export Data</button>
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-3 flex-wrap">
+                <div>
+                    <h5 class="section-title mb-1">Dashboard Manager - Sistem Keseluruhan</h5>
+                    <div class="text-muted small">Monitoring operasi seluruh cabang dan kinerja real-time</div>
+                </div>
             </div>
 
             <div class="row g-3 mb-3">
-                <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Shipment Hari Ini</div><div class="metric-value">${formatNumber(payload.shipments_today || 0)}</div></div></div>
-                <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Shipment Aktif</div><div class="metric-value">${formatNumber((payload.shipments_pending || 0) + (payload.shipments_in_transit || 0))}</div></div></div>
-                <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Payment Pending</div><div class="metric-value">${formatNumber(payload.outstanding_payments || 0)}</div></div></div>
+                <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Total Shipment</div><div class="metric-value">${formatNumber(payload.shipments_total || 0)}</div></div></div>
+                <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Hari Ini</div><div class="metric-value">${formatNumber(payload.shipments_today || 0)}</div></div></div>
                 <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Revenue Settled</div><div class="metric-value">${formatCurrency(payload.revenue_total || 0)}</div></div></div>
+                <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Payment Pending</div><div class="metric-value">${formatNumber(payload.outstanding_payments || 0)}</div></div></div>
             </div>
 
-            <div class="row g-3">
+            <div class="row g-3 mb-3">
                 <div class="col-lg-6">
                     <div class="surface-box">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0">Shipment Terbaru (Cabang Anda)</h6>
-                            <button class="btn btn-sm btn-kondang-secondary" onclick="switchView('shipment')">Buka Shipment</button>
-                        </div>
+                        <h6 class="mb-2">Top 5 Cabang (Revenue)</h6>
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
-                                <thead><tr><th>Tracking</th><th>Penerima</th><th>Status</th><th>Cabang</th></tr></thead>
-                                <tbody>${shipmentRows}</tbody>
+                                <thead><tr><th>Cabang</th><th>Shipment</th><th>Revenue</th></tr></thead>
+                                <tbody>${branchRows}</tbody>
                             </table>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-6">
                     <div class="surface-box">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0">Payment Terbaru (Cabang Anda)</h6>
-                            <button class="btn btn-sm btn-kondang-secondary" onclick="switchView('payment')">Buka Payment</button>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-sm align-middle mb-0">
-                                <thead><tr><th>Tracking</th><th>Metode</th><th>Status</th><th>Amount</th></tr></thead>
-                                <tbody>${paymentRows}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row g-3 mt-0">
-                <div class="col-lg-6">
-                    <div class="surface-box">
-                        <h6 class="mb-2">Distribusi Status Shipment</h6>
+                        <h6 class="mb-2">Status Breakdown</h6>
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
                                 <thead><tr><th>Status</th><th>Total</th></tr></thead>
@@ -1690,13 +1677,25 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-12">
                     <div class="surface-box">
-                        <h6 class="mb-2">Catatan Akses Manager</h6>
-                        <div class="small text-muted">
-                            Menu manager difokuskan ke operasi harian: monitoring shipment, monitoring payment, dan tindak lanjut cepat per cabang.
+                        <h6 class="mb-2">Tracking Activity Terbaru</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>Tracking</th><th>Status</th><th>Waktu</th></tr></thead>
+                                <tbody>${trackingRows}</tbody>
+                            </table>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+                <div class="col-12">
+                    <button class="btn btn-kondang" onclick="switchView('cabang')">Lihat Detail Performa Semua Cabang →</button>
                 </div>
             </div>
         `;
@@ -2307,6 +2306,156 @@
     function populateCabangZoneSelect() {
         const select = document.getElementById('cabangZona');
         select.innerHTML = `<option value="">-</option>${appState.zones.map((item) => `<option value="${item.id}">${item.code} - ${item.name}</option>`).join('')}`;
+    }
+
+    async function loadBranchPerformance() {
+        try {
+            const branchPerf = appState.payload?.branch_performance?.ranking || [];
+            
+            if (!branchPerf.length) {
+                document.getElementById('branchPerformanceSection').innerHTML = '';
+                return;
+            }
+
+            const perfRows = branchPerf.map((b) => `
+                <div class="col-md-6 col-lg-4 col-xl-3">
+                    <div class="card-soft p-3 d-flex flex-column" style="cursor: pointer;" onclick="loadDetailBranchPerf(${b.id})">
+                        <div><strong data-branch-name>${b.name}</strong></div>
+                        <div class="small text-muted">${b.code}</div>
+                        <div class="mt-2 pt-2 border-top">
+                            <div class="d-flex justify-content-between small">
+                                <span>Shipment</span>
+                                <strong>${formatNumber(b.shipment_volume || 0)}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small mt-1">
+                                <span>Revenue</span>
+                                <strong>${formatCurrency(b.revenue_settled || 0)}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('branchPerformanceSection').innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">📊 Performa Cabang (Klik untuk detail)</h6>
+                    <button class="btn btn-sm btn-kondang-secondary" onclick="loadBranchPerformance()">Refresh</button>
+                </div>
+                <div class="row g-2">
+                    ${perfRows}
+                </div>
+                <div id="branchPerfDetail" class="mt-3"></div>
+            `;
+        } catch (e) {
+            console.error('Error loading branch performance:', e);
+            document.getElementById('branchPerformanceSection').innerHTML = '<div class="alert alert-danger">Error loading performance data</div>';
+        }
+    }
+
+    async function loadDetailBranchPerf(branchId) {
+        const detail = await api(`/reports/branch/${branchId}`);
+        renderDetailBranchPerf(detail);
+    }
+
+    function renderDetailBranchPerf(detail) {
+        const shipmentsByStatus = detail.shipments_by_status || [];
+        const recentShipments = detail.recent_shipments || [];
+        const topCouriers = detail.top_couriers || [];
+
+        const statusLabels = shipmentsByStatus.map(s => `"${s.code}"`).join(', ');
+        const statusCounts = shipmentsByStatus.map(s => s.total).join(', ');
+
+        const html = `
+            <div class="surface-box mt-3">
+                <h6 class="mb-3">${detail.name} (${detail.code})</h6>
+                
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Total Shipment</div><div class="metric-value">${formatNumber(detail.shipments_total || 0)}</div></div></div>
+                    <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Revenue</div><div class="metric-value">${formatCurrency(detail.revenue_total || 0)}</div></div></div>
+                    <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Payment Pending</div><div class="metric-value">${formatCurrency(detail.payments_pending || 0)}</div></div></div>
+                    <div class="col-md-6 col-xl-3"><div class="metric-box"><div class="metric-label">Vehicles / Users</div><div class="metric-value">${detail.vehicles_count || 0} / ${detail.users_count || 0}</div></div></div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-6">
+                        <div class="surface-box">
+                            <h6 class="mb-2">Status Distribution</h6>
+                            <div class="chart-box">
+                                <canvas id="chartBranchStatus_${detail.id}"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="surface-box">
+                            <h6 class="mb-2">Top 5 Kurir</h6>
+                            <div class="table-responsive small">
+                                <table class="table table-sm mb-0">
+                                    <thead><tr><th>Nama</th><th>Terkirim</th></tr></thead>
+                                    <tbody>
+                                        ${topCouriers.map(c => `
+                                            <tr>
+                                                <td>${c.name}</td>
+                                                <td><strong>${formatNumber(c.delivered)}</strong></td>
+                                            </tr>
+                                        `).join('') || '<tr><td colspan="2" class="text-muted text-center py-2">-</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="surface-box">
+                            <h6 class="mb-2">Shipment Terbaru (10)</h6>
+                            <div class="table-responsive small">
+                                <table class="table table-sm mb-0">
+                                    <thead><tr><th>Tracking</th><th>Kurir</th><th>Status</th><th>Tanggal</th></tr></thead>
+                                    <tbody>
+                                        ${recentShipments.map(s => `
+                                            <tr>
+                                                <td>${s.tracking_number}</td>
+                                                <td>${s.courier || '-'}</td>
+                                                <td>${renderStatusBadge(s.status, s.status)}</td>
+                                                <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+                                            </tr>
+                                        `).join('') || '<tr><td colspan="4" class="text-muted text-center py-2">-</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('branchPerfDetail').innerHTML = html;
+
+        // Render chart
+        setTimeout(() => {
+            const ctx = document.getElementById(`chartBranchStatus_${detail.id}`);
+            if (ctx && appState.charts[`branchStatus_${detail.id}`]) {
+                appState.charts[`branchStatus_${detail.id}`].destroy();
+            }
+            if (ctx) {
+                appState.charts[`branchStatus_${detail.id}`] = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: shipmentsByStatus.map(s => s.name),
+                        datasets: [{
+                            data: shipmentsByStatus.map(s => s.total),
+                            backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                    },
+                });
+            }
+        }, 100);
     }
 
     function editCabang(id) {

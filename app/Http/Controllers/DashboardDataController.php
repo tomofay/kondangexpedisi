@@ -34,7 +34,8 @@ class DashboardDataController extends Controller
 
         return response()->json(match ($user->role) {
             'admin' => $this->adminPayload($user),
-            'manager', 'kasir', 'courier' => $this->staffPayload($user),
+            'manager' => $this->adminPayload($user),
+            'kasir', 'courier' => $this->staffPayload($user),
             'customer' => $this->customerPayload($user),
             default => ['message' => 'Role tidak dikenali.'],
         });
@@ -201,9 +202,9 @@ class DashboardDataController extends Controller
         $paymentQuery = Payment::query();
         $trackingQuery = ShipmentTracking::query()->with(['shipment.status', 'status']);
 
-        if (in_array($user->role, ['kasir', 'manager', 'courier'], true) && $user->branch_id) {
+        if (in_array($user->role, ['kasir', 'courier'], true) && $user->branch_id) {
             $branch = Branch::query()->find($user->branch_id);
-            $isStaffWithInactiveBranch = in_array($user->role, ['manager', 'kasir'], true) && (! $branch || ! $branch->is_active);
+            $isStaffWithInactiveBranch = in_array($user->role, ['kasir'], true) && (! $branch || ! $branch->is_active);
 
             if ($isStaffWithInactiveBranch) {
                 $shipmentQuery->whereRaw('1 = 0');
@@ -263,10 +264,10 @@ class DashboardDataController extends Controller
                 ->limit(10)
                 ->get(),
             'permissions' => [
-                'can_manage_shipments' => in_array($user->role, ['admin', 'kasir', 'manager', 'courier'], true),
-                'can_manage_payments' => in_array($user->role, ['admin', 'kasir', 'manager'], true),
-                'can_view_reports' => in_array($user->role, ['admin', 'kasir', 'manager'], true),
-                'can_manage_master_data' => in_array($user->role, ['admin', 'kasir', 'manager'], true),
+                'can_manage_shipments' => in_array($user->role, ['admin', 'kasir', 'courier'], true),
+                'can_manage_payments' => in_array($user->role, ['admin', 'kasir'], true),
+                'can_view_reports' => in_array($user->role, ['admin', 'kasir'], true),
+                'can_manage_master_data' => in_array($user->role, ['admin', 'kasir'], true),
             ],
         ];
     }

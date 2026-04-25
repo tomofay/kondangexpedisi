@@ -23,7 +23,7 @@ class VehicleController extends Controller
 
         $query = Vehicle::query()->with('branch');
 
-        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+        if (in_array($actor?->role, ['kasir'], true)) {
             $managerBranch = Branch::query()->find($actor->branch_id);
 
             if (! $managerBranch || ! $managerBranch->is_active) {

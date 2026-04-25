@@ -12,11 +12,15 @@ use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
 use App\Models\Zone;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ShipmentService
 {
+    private ?bool $hasDestinationBranchColumn = null;
+
     public function __construct(private readonly AuditLogService $auditLogService)
     {
     }
@@ -29,6 +33,77 @@ class ShipmentService
         $random = Str::upper(Str::random(5));
 
         return sprintf('%s-%s-%s-%s', $prefix, $branchCode, now()->format($dateFormat), $random);
+    }
+
+    public function allowedShipmentStatusCodes(): array
+    {
+        return array_values(config('expedition.shipment_statuses', []));
+    }
+
+    public function finalShipmentStatusCodes(): array
+    {
+        return array_values(config('expedition.shipment_status_flow.final_statuses', ['delivered', 'cancelled', 'returned']));
+    }
+
+    public function allowedNextShipmentStatusCodes(string $currentStatusCode): array
+    {
+        $transitions = config('expedition.shipment_status_flow.transitions', []);
+
+        return array_values($transitions[$currentStatusCode] ?? []);
+    }
+
+    public function isFinalShipmentStatus(string $statusCode): bool
+    {
+        return in_array($statusCode, $this->finalShipmentStatusCodes(), true);
+    }
+
+    public function canForceShipmentStatusOverride(?User $actor): bool
+    {
+        return $actor !== null && in_array($actor->role, config('expedition.shipment_status_flow.override_roles', ['admin']), true);
+    }
+
+    public function validateShipmentStatusTransition(Shipment $shipment, string $statusCode, ?User $actor = null, bool $forceTransition = false): void
+    {
+        $allowedStatusCodes = $this->allowedShipmentStatusCodes();
+
+        if (! in_array($statusCode, $allowedStatusCodes, true)) {
+            throw ValidationException::withMessages([
+                'status_code' => 'Status shipment tidak valid.',
+            ]);
+        }
+
+        $shipment->loadMissing('status');
+        $currentStatusCode = $shipment->status?->code;
+
+        if ($currentStatusCode === $statusCode) {
+            throw ValidationException::withMessages([
+                'status_code' => 'Shipment sudah berada pada status tersebut.',
+            ]);
+        }
+
+        if ($shipment->status?->is_final) {
+            if (! $forceTransition) {
+                throw ValidationException::withMessages([
+                    'status_code' => 'Shipment yang sudah final tidak bisa dipindahkan ke status lain.',
+                ]);
+            }
+
+            if (! $this->canForceShipmentStatusOverride($actor)) {
+                throw ValidationException::withMessages([
+                    'status_code' => 'Hanya admin yang dapat melakukan override status final.',
+                ]);
+            }
+
+            return;
+        }
+
+        $allowedNextStatuses = $this->allowedNextShipmentStatusCodes($currentStatusCode ?? '');
+
+        if (! in_array($statusCode, $allowedNextStatuses, true)) {
+            throw ValidationException::withMessages([
+                'status_code' => 'Transisi status tidak valid. Ikuti urutan bisnis yang sudah ditentukan.',
+            ]);
+        }
     }
 
     public function calculateTotalAmount(array $data): array
@@ -116,36 +191,41 @@ class ShipmentService
         $before = $shipment->only(['courier_id', 'vehicle_id']);
         $shipment->loadMissing('branch');
 
-        $shipment->update([
-            'courier_id' => $courierId,
-            'vehicle_id' => $vehicleId,
-        ]);
-
-        if ($courierId) {
-            $assignedStatusId = ShipmentStatus::query()->where('code', 'in_transit')->value('id');
-            $shipment->trackings()->create([
-                'status_id' => $assignedStatusId,
-                'created_by' => $actorId,
-                'location' => $shipment->branch?->city,
-                'notes' => 'Kurir ditugaskan ke shipment ini.',
-                'event_at' => now(),
+        DB::transaction(function () use ($shipment, $courierId, $vehicleId, $actorId, $before) {
+            $shipment->update([
+                'courier_id' => $courierId,
+                'vehicle_id' => $vehicleId,
             ]);
-        }
 
-        $this->auditLogService->record(
-            'shipment.assign_courier',
-            $shipment,
-            User::query()->find($actorId),
-            $before,
-            $shipment->fresh()->only(['courier_id', 'vehicle_id']),
-            'Kurir ditetapkan ke shipment.'
-        );
+            if ($courierId) {
+                $assignedStatusId = ShipmentStatus::query()->where('code', 'in_transit')->value('id');
+                $shipment->trackings()->create([
+                    'status_id' => $assignedStatusId,
+                    'created_by' => $actorId,
+                    'location' => $shipment->branch?->city,
+                    'notes' => 'Kurir ditugaskan ke shipment ini.',
+                    'event_at' => now(),
+                ]);
+            }
+
+            $this->auditLogService->record(
+                'shipment.assign_courier',
+                $shipment,
+                User::query()->find($actorId),
+                $before,
+                $shipment->fresh()->only(['courier_id', 'vehicle_id']),
+                'Kurir ditetapkan ke shipment.'
+            );
+        });
 
         return $shipment->fresh(['branch', 'courier', 'vehicle', 'status']);
     }
 
-    public function transitionStatus(Shipment $shipment, string $statusCode, ?int $actorId = null, ?string $location = null, ?string $notes = null): Shipment
+    public function transitionStatus(Shipment $shipment, string $statusCode, ?int $actorId = null, ?string $location = null, ?string $notes = null, bool $forceTransition = false, ?string $overrideReason = null): Shipment
     {
+        $actor = User::query()->find($actorId);
+        $this->validateShipmentStatusTransition($shipment, $statusCode, $actor, $forceTransition);
+
         $status = ShipmentStatus::query()->where('code', $statusCode)->first();
 
         if (! $status) {
@@ -154,14 +234,17 @@ class ShipmentService
             ]);
         }
 
-        $finalCodes = ['delivered', 'cancelled', 'returned'];
-        if ($shipment->status?->is_final && ! in_array($statusCode, $finalCodes, true)) {
-            throw ValidationException::withMessages([
-                'status_code' => 'Shipment yang sudah final tidak bisa dipindahkan ke status lain.',
-            ]);
-        }
-
         $before = $shipment->only(['status_id', 'current_status_at', 'delivered_at']);
+
+        $trackingNotes = $notes;
+
+        if ($forceTransition) {
+            $trackingNotes = trim(sprintf(
+                'Manual override: %s%s',
+                $overrideReason ? $overrideReason.'. ' : '',
+                $notes ?: 'Perubahan status final disetujui admin.'
+            ));
+        }
 
         $shipment->update([
             'status_id' => $status->id,
@@ -173,17 +256,17 @@ class ShipmentService
             'status_id' => $status->id,
             'created_by' => $actorId,
             'location' => $location,
-            'notes' => $notes ?: 'Status shipment diperbarui menjadi '.$status->name,
+            'notes' => $trackingNotes ?: 'Status shipment diperbarui menjadi '.$status->name,
             'event_at' => now(),
         ]);
 
         $this->auditLogService->record(
             'shipment.transition_status',
             $shipment,
-            User::query()->find($actorId),
+            $actor,
             $before,
             $shipment->fresh()->only(['status_id', 'current_status_at', 'delivered_at']),
-            $notes
+            $trackingNotes
         );
 
         return $shipment->fresh(['status', 'trackings.status']);
@@ -191,17 +274,24 @@ class ShipmentService
 
     public function createShipment(array $data, ?User $actor = null): Shipment
     {
-        $amount = $this->calculateTotalAmount($data);
+        $manualOverride = (bool) ($data['manual_override'] ?? false);
+        $amount = $manualOverride
+            ? [
+                'subtotal_amount' => (int) round((float) ($data['subtotal_amount'] ?? 0)),
+                'insurance_amount' => (int) round((float) ($data['insurance_amount'] ?? 0)),
+                'admin_fee' => (int) round((float) ($data['admin_fee'] ?? 0)),
+                'total_amount' => (int) round((float) ($data['total_amount'] ?? 0)),
+            ]
+            : $this->calculateTotalAmount($data);
         $pendingStatusId = ShipmentStatus::query()->where('code', 'pending')->value('id');
 
-        $shipment = Shipment::query()->create([
+        $payload = [
             'tracking_number' => $this->generateTrackingNumber((int) $data['branch_id']),
             'customer_id' => $data['customer_id'] ?? null,
             'branch_id' => $data['branch_id'],
-            'destination_branch_id' => $data['destination_branch_id'] ?? null,
             'courier_id' => $data['courier_id'] ?? null,
             'vehicle_id' => $data['vehicle_id'] ?? null,
-            'zone_id' => $data['zone_id'],
+            'zone_id' => $data['zone_id'] ?? null,
             'status_id' => $pendingStatusId,
             'sender_name' => $data['sender_name'],
             'sender_phone' => $data['sender_phone'],
@@ -219,51 +309,78 @@ class ShipmentService
             'is_cod' => (bool) ($data['is_cod'] ?? false),
             'cod_amount' => $data['cod_amount'] ?? 0,
             'payment_status' => 'pending',
+            'processing_status' => $manualOverride ? 'needs_manual_review' : 'ok',
+            'processing_error' => $manualOverride ? 'Shipment dibuat melalui koreksi manual.' : null,
+            'pricing_mode' => $manualOverride ? 'manual' : 'auto',
+            'manual_override_by' => $manualOverride ? $actor?->id : null,
+            'manual_override_reason' => $manualOverride ? ($data['manual_override_reason'] ?? null) : null,
+            'manual_override_at' => $manualOverride ? now() : null,
             'current_status_at' => now(),
             'estimated_delivery_at' => $data['estimated_delivery_at'] ?? now()->addDays(2),
             'delivered_at' => null,
             'notes' => $data['notes'] ?? null,
-        ]);
+        ];
 
-        $shipment->loadMissing('branch');
+        if ($this->supportsDestinationBranchColumn()) {
+            $payload['destination_branch_id'] = $data['destination_branch_id'] ?? null;
+        }
 
-        $shipment->trackings()->create([
-            'status_id' => $pendingStatusId,
-            'created_by' => $actor?->id,
-            'location' => $shipment->branch?->city,
-            'notes' => 'Shipment dibuat dan menunggu proses pickup.',
-            'event_at' => now(),
-        ]);
+        $shipment = DB::transaction(function () use ($payload, $pendingStatusId, $actor, $data) {
+            $shipment = Shipment::query()->create($payload);
 
-        $autoPayment = Payment::query()->create([
-            'shipment_id' => $shipment->id,
-            'customer_id' => $shipment->customer_id,
-            'processed_by' => $actor?->id,
-            'method' => (bool) ($data['is_cod'] ?? false) ? 'cod' : 'midtrans',
-            'status' => 'pending',
-            'amount' => $shipment->total_amount,
-            'notes' => 'Payment otomatis dibuat saat shipment dibuat berdasarkan perhitungan rate card.',
-        ]);
+            $shipment->loadMissing('branch');
 
-        $this->auditLogService->record(
-            'payment.auto_create',
-            $autoPayment,
-            $actor,
-            [],
-            $autoPayment->only(['shipment_id', 'customer_id', 'method', 'status', 'amount']),
-            'Payment pending otomatis dibuat dari shipment baru.'
-        );
+            $shipment->trackings()->create([
+                'status_id' => $pendingStatusId,
+                'created_by' => $actor?->id,
+                'location' => $shipment->branch?->city,
+                'notes' => 'Shipment dibuat dan menunggu proses pickup.',
+                'event_at' => now(),
+            ]);
 
-        $this->auditLogService->record(
-            'shipment.create',
-            $shipment,
-            $actor,
-            [],
-            $shipment->fresh()->only(['tracking_number', 'branch_id', 'status_id', 'payment_status', 'total_amount']),
-            'Shipment dibuat.'
-        );
+            $autoPayment = Payment::query()->create([
+                'shipment_id' => $shipment->id,
+                'customer_id' => $shipment->customer_id,
+                'processed_by' => $actor?->id,
+                'method' => (bool) ($data['is_cod'] ?? false) ? 'cod' : 'midtrans',
+                'status' => 'pending',
+                'amount' => $shipment->total_amount,
+                'notes' => 'Payment otomatis dibuat saat shipment dibuat berdasarkan perhitungan rate card.',
+            ]);
+
+            $this->auditLogService->record(
+                'payment.auto_create',
+                $autoPayment,
+                $actor,
+                [],
+                $autoPayment->only(['shipment_id', 'customer_id', 'method', 'status', 'amount']),
+                'Payment pending otomatis dibuat dari shipment baru.'
+            );
+
+            $this->auditLogService->record(
+                'shipment.create',
+                $shipment,
+                $actor,
+                [],
+                $shipment->fresh()->only(['tracking_number', 'branch_id', 'status_id', 'payment_status', 'total_amount']),
+                'Shipment dibuat.'
+            );
+
+            return $shipment;
+        });
 
         return $shipment->fresh(['branch', 'status', 'trackings', 'payments']);
+    }
+
+    private function supportsDestinationBranchColumn(): bool
+    {
+        if ($this->hasDestinationBranchColumn !== null) {
+            return $this->hasDestinationBranchColumn;
+        }
+
+        $this->hasDestinationBranchColumn = Schema::hasColumn('shipments', 'destination_branch_id');
+
+        return $this->hasDestinationBranchColumn;
     }
 
     public function syncPaymentStatus(Shipment $shipment, string $paymentStatus): Shipment

@@ -37,6 +37,12 @@ class Shipment extends Model
         'is_cod',
         'cod_amount',
         'payment_status',
+        'processing_status',
+        'processing_error',
+        'pricing_mode',
+        'manual_override_by',
+        'manual_override_reason',
+        'manual_override_at',
         'current_status_at',
         'estimated_delivery_at',
         'delivered_at',
@@ -54,6 +60,7 @@ class Shipment extends Model
             'admin_fee' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'cod_amount' => 'decimal:2',
+            'manual_override_at' => 'datetime',
             'current_status_at' => 'datetime',
             'estimated_delivery_at' => 'datetime',
             'delivered_at' => 'datetime',
@@ -93,6 +100,11 @@ class Shipment extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(ShipmentStatus::class, 'status_id');
+    }
+
+    public function manualOverrideBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manual_override_by');
     }
 
     public function items(): HasMany

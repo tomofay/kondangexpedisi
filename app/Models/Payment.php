@@ -17,6 +17,8 @@ class Payment extends Model
         'processed_by',
         'method',
         'status',
+        'processing_status',
+        'processing_error',
         'amount',
         'midtrans_order_id',
         'midtrans_transaction_id',
@@ -30,6 +32,9 @@ class Payment extends Model
         'transaction_time',
         'paid_at',
         'gateway_payload',
+        'manual_override_by',
+        'manual_override_reason',
+        'manual_override_at',
         'notes',
     ];
 
@@ -37,6 +42,7 @@ class Payment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'manual_override_at' => 'datetime',
             'transaction_time' => 'datetime',
             'paid_at' => 'datetime',
             'gateway_payload' => 'array',
@@ -56,5 +62,10 @@ class Payment extends Model
     public function processor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    public function manualOverrideBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manual_override_by');
     }
 }
