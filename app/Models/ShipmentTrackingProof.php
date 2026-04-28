@@ -3,30 +3,34 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ShipmentTracking extends Model
+class ShipmentTrackingProof extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'shipment_id',
-        'status_id',
-        'created_by',
-        'location',
+        'tracking_id',
+        'uploaded_by',
+        'proof_type',
+        'file_path',
+        'file_mime',
+        'file_size',
+        'file_hash',
         'gps_lat',
         'gps_lng',
         'gps_accuracy_m',
+        'captured_at',
         'notes',
-        'event_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'event_at' => 'datetime',
+            'captured_at' => 'datetime',
+            'file_size' => 'integer',
             'gps_lat' => 'decimal:7',
             'gps_lng' => 'decimal:7',
             'gps_accuracy_m' => 'decimal:2',
@@ -38,18 +42,13 @@ class ShipmentTracking extends Model
         return $this->belongsTo(Shipment::class);
     }
 
-    public function status(): BelongsTo
+    public function tracking(): BelongsTo
     {
-        return $this->belongsTo(ShipmentStatus::class, 'status_id');
+        return $this->belongsTo(ShipmentTracking::class, 'tracking_id');
     }
 
-    public function creator(): BelongsTo
+    public function uploader(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function proofs(): HasMany
-    {
-        return $this->hasMany(ShipmentTrackingProof::class, 'tracking_id');
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 }

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminTask;
 use App\Models\Branch;
 use App\Models\Shipment;
+use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\ApprovalWorkflowService;
 use App\Services\OperationalIssueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -85,6 +88,7 @@ class ShipmentController extends Controller
     public function store(Request $request, ShipmentService $shipmentService, OperationalIssueService $operationalIssueService)
     {
         $this->authorize('create', Shipment::class);
+        $actor = $request->user();
 
         $validated = $request->validate([
             'customer_id' => ['nullable', 'exists:customers,id'],
@@ -111,10 +115,16 @@ class ShipmentController extends Controller
             'estimated_delivery_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'manual_override' => ['sometimes', 'boolean'],
+            'manual_override_requires_approval' => ['sometimes', 'boolean'],
             'manual_override_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $manualOverride = (bool) ($validated['manual_override'] ?? false);
+        $manualOverrideRequiresApproval = (bool) ($validated['manual_override_requires_approval'] ?? false);
+
+        if ($manualOverride) {
+            $this->assertManualCorrectionPermission($actor, (int) $validated['branch_id']);
+        }
 
         if ($manualOverride && empty($validated['manual_override_reason'])) {
             throw ValidationException::withMessages([
@@ -143,6 +153,33 @@ class ShipmentController extends Controller
         }
 
         try {
+            if ($manualOverride && $manualOverrideRequiresApproval) {
+                $shipment = $shipmentService->createShipment(array_merge($validated, [
+                    'manual_override' => false,
+                ]), $request->user());
+
+                $pricingTask = $shipmentService->requestPricingOverrideApproval(
+                    $shipment,
+                    $request->user(),
+                    [
+                        'subtotal_amount' => $validated['subtotal_amount'],
+                        'insurance_amount' => $validated['insurance_amount'],
+                        'admin_fee' => $validated['admin_fee'],
+                        'total_amount' => $validated['total_amount'],
+                    ],
+                    $validated['manual_override_reason']
+                );
+
+                return response()->json([
+                    'message' => 'Shipment berhasil dibuat. Override tarif menunggu approval admin.',
+                    'data' => $shipment->fresh(),
+                    'pricing_override_task' => [
+                        'task_id' => $pricingTask->id,
+                        'status' => $pricingTask->status,
+                    ],
+                ], 202);
+            }
+
             if ($manualOverride) {
                 $shipment = DB::transaction(function () use ($validated, $request, $shipmentService, $operationalIssueService) {
                     $shipment = $shipmentService->createShipment(array_merge($validated, [
@@ -237,6 +274,11 @@ class ShipmentController extends Controller
     public function update(Request $request, Shipment $shipment, ShipmentService $shipmentService, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService)
     {
         $this->authorize('update', $shipment);
+        $actor = $request->user();
+
+        if ($actor?->role === 'courier') {
+            abort(403, 'Kurir hanya boleh update status dan bukti antar melalui endpoint tracking/transisi status.');
+        }
 
         $supportsDestinationBranch = $this->supportsDestinationBranchColumn();
 
@@ -289,14 +331,28 @@ class ShipmentController extends Controller
             'delivered_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'manual_override' => ['sometimes', 'boolean'],
+            'manual_override_requires_approval' => ['sometimes', 'boolean'],
             'manual_override_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $manualOverride = (bool) ($validated['manual_override'] ?? false);
+        $manualOverrideRequiresApproval = (bool) ($validated['manual_override_requires_approval'] ?? false);
+        $pricingApprovalTask = null;
+
+        if ($manualOverride) {
+            $targetBranchId = (int) ($validated['branch_id'] ?? $shipment->branch_id);
+            $this->assertManualCorrectionPermission($actor, $targetBranchId);
+        }
 
         if ($manualOverride && empty($validated['manual_override_reason'])) {
             throw ValidationException::withMessages([
                 'manual_override_reason' => 'Alasan override manual wajib diisi.',
+            ]);
+        }
+
+        if (! $manualOverride && $manualOverrideRequiresApproval) {
+            throw ValidationException::withMessages([
+                'manual_override_requires_approval' => 'Aktifkan manual_override untuk membuat request approval override tarif.',
             ]);
         }
 
@@ -343,7 +399,7 @@ class ShipmentController extends Controller
                 ->update(['amount' => $recalculated['total_amount']]);
         }
 
-        if ($manualOverride) {
+        if ($manualOverride && ! $manualOverrideRequiresApproval) {
             $manualAmountFields = array_intersect_key($validated, array_flip([
                 'subtotal_amount',
                 'insurance_amount',
@@ -364,6 +420,34 @@ class ShipmentController extends Controller
                 $validated['manual_override_reason']
             );
         }
+
+        if ($manualOverride && $manualOverrideRequiresApproval) {
+            $manualAmountFields = array_intersect_key($validated, array_flip([
+                'subtotal_amount',
+                'insurance_amount',
+                'admin_fee',
+                'total_amount',
+            ]));
+
+            if (count($manualAmountFields) !== 4) {
+                throw ValidationException::withMessages([
+                    'manual_override' => 'Semua field biaya wajib diisi ketika request approval override aktif.',
+                ]);
+            }
+
+            $pricingApprovalTask = $shipmentService->requestPricingOverrideApproval(
+                $shipment,
+                $request->user(),
+                $manualAmountFields,
+                $validated['manual_override_reason']
+            );
+        }
+
+        unset(
+            $validated['manual_override'],
+            $validated['manual_override_reason'],
+            $validated['manual_override_requires_approval']
+        );
 
         $shipment->fill(array_intersect_key($validated, array_flip([
             'branch_id',
@@ -417,9 +501,213 @@ class ShipmentController extends Controller
             'Shipment diperbarui secara manual.'
         );
 
+        if ($pricingApprovalTask) {
+            return response()->json([
+                'message' => 'Permintaan override tarif dikirim. Menunggu approval admin.',
+                'data' => $shipment->fresh(),
+                'pricing_override_task' => [
+                    'task_id' => $pricingApprovalTask->id,
+                    'status' => $pricingApprovalTask->status,
+                ],
+            ], 202);
+        }
+
         return response()->json([
             'message' => 'Shipment berhasil diperbarui.',
             'data' => $shipment->fresh(),
+        ]);
+    }
+
+    public function requestPricingOverride(Request $request, Shipment $shipment, ShipmentService $shipmentService)
+    {
+        $this->authorize('update', $shipment);
+        $actor = $request->user();
+
+        $this->assertManualCorrectionPermission($actor, (int) $shipment->branch_id);
+
+        $validated = $request->validate([
+            'subtotal_amount' => ['required', 'numeric', 'min:0'],
+            'insurance_amount' => ['required', 'numeric', 'min:0'],
+            'admin_fee' => ['required', 'numeric', 'min:0'],
+            'total_amount' => ['required', 'numeric', 'min:0'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $task = $shipmentService->requestPricingOverrideApproval(
+            $shipment,
+            $actor,
+            [
+                'subtotal_amount' => $validated['subtotal_amount'],
+                'insurance_amount' => $validated['insurance_amount'],
+                'admin_fee' => $validated['admin_fee'],
+                'total_amount' => $validated['total_amount'],
+            ],
+            $validated['reason']
+        );
+
+        return response()->json([
+            'message' => 'Request override tarif berhasil dibuat.',
+            'data' => [
+                'shipment_id' => $shipment->id,
+                'pricing_approval_status' => 'pending',
+                'task_id' => $task->id,
+                'task_status' => $task->status,
+            ],
+        ], 202);
+    }
+
+    public function approvePricingOverride(Request $request, Shipment $shipment, ShipmentService $shipmentService)
+    {
+        $this->authorize('update', $shipment);
+
+        if ($request->user()?->role !== 'admin') {
+            throw ValidationException::withMessages([
+                'approver' => 'Hanya admin yang boleh menyetujui override tarif.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'approval_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $updatedShipment = $shipmentService->approvePricingOverrideRequest(
+            $shipment,
+            $request->user(),
+            $validated['approval_note'] ?? null
+        );
+
+        return response()->json([
+            'message' => 'Override tarif disetujui dan diterapkan.',
+            'data' => $updatedShipment,
+        ]);
+    }
+
+    public function rejectPricingOverride(Request $request, Shipment $shipment, ShipmentService $shipmentService)
+    {
+        $this->authorize('update', $shipment);
+
+        if ($request->user()?->role !== 'admin') {
+            throw ValidationException::withMessages([
+                'approver' => 'Hanya admin yang boleh menolak override tarif.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $updatedShipment = $shipmentService->rejectPricingOverrideRequest(
+            $shipment,
+            $request->user(),
+            $validated['rejection_reason']
+        );
+
+        return response()->json([
+            'message' => 'Override tarif ditolak. Shipment kembali menggunakan tarif otomatis.',
+            'data' => $updatedShipment,
+        ]);
+    }
+
+    public function pricingApprovalInbox(Request $request)
+    {
+        $actor = $request->user();
+
+        if (! in_array($actor?->role, ['admin', 'manager'], true)) {
+            abort(403, 'Hanya admin/manager yang dapat melihat inbox approval pricing.');
+        }
+
+        $validated = $request->validate([
+            'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'all'])],
+            'per_page' => ['nullable', 'integer', 'min:5', 'max:100'],
+        ]);
+
+        $status = $validated['status'] ?? 'pending';
+        $perPage = (int) ($validated['per_page'] ?? 25);
+
+        $query = AdminTask::query()
+            ->where('task_type', 'shipment_pricing_override_approval')
+            ->with(['creator:id,name,email', 'assignee:id,name,email'])
+            ->latest();
+
+        if ($status === 'pending') {
+            $query->whereIn('status', ['pending', 'in_progress']);
+        }
+
+        if ($status === 'approved') {
+            $query
+                ->where('status', 'completed')
+                ->where(function ($builder) {
+                    $builder->where('result->decision', 'approved')
+                        ->orWhereNull('result->decision');
+                });
+        }
+
+        if ($status === 'rejected') {
+            $query->where('status', 'cancelled')->where('result->decision', 'rejected');
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        $shipmentIds = collect($paginator->items())
+            ->map(fn (AdminTask $task) => (int) ($task->action_data['shipment_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $shipments = Shipment::query()
+            ->whereIn('id', $shipmentIds)
+            ->get(['id', 'tracking_number', 'branch_id', 'pricing_mode', 'pricing_approval_status', 'auto_total_amount', 'corrected_total_amount', 'total_amount'])
+            ->keyBy('id');
+
+        $items = collect($paginator->items())->map(function (AdminTask $task) use ($shipments) {
+            $shipmentId = (int) ($task->action_data['shipment_id'] ?? 0);
+            $shipment = $shipmentId ? $shipments->get($shipmentId) : null;
+
+            return [
+                'task_id' => $task->id,
+                'task_status' => $task->status,
+                'priority' => $task->priority,
+                'reason' => $task->description,
+                'current_amounts' => $task->action_data['current_amounts'] ?? null,
+                'proposed_amounts' => $task->action_data['proposed_amounts'] ?? null,
+                'decision' => $task->result['decision'] ?? null,
+                'decision_note' => $task->result['approval_note'] ?? ($task->result['reason'] ?? null),
+                'created_at' => $task->created_at,
+                'updated_at' => $task->updated_at,
+                'creator' => $task->creator,
+                'assignee' => $task->assignee,
+                'shipment' => $shipment ? [
+                    'id' => $shipment->id,
+                    'tracking_number' => $shipment->tracking_number,
+                    'branch_id' => $shipment->branch_id,
+                    'pricing_mode' => $shipment->pricing_mode,
+                    'pricing_approval_status' => $shipment->pricing_approval_status,
+                    'auto_total_amount' => $shipment->auto_total_amount,
+                    'corrected_total_amount' => $shipment->corrected_total_amount,
+                    'effective_total_amount' => $shipment->total_amount,
+                    'detail_endpoint' => route('shipments.show', $shipment),
+                ] : null,
+            ];
+        })->values();
+
+        $summaryBase = AdminTask::query()->where('task_type', 'shipment_pricing_override_approval');
+
+        return response()->json([
+            'status' => 'success',
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'has_next_page' => $paginator->hasMorePages(),
+                'applied_filter' => $status,
+            ],
+            'summary' => [
+                'pending' => (clone $summaryBase)->whereIn('status', ['pending', 'in_progress'])->count(),
+                'approved' => (clone $summaryBase)->where('status', 'completed')->count(),
+                'rejected' => (clone $summaryBase)->where('status', 'cancelled')->where('result->decision', 'rejected')->count(),
+            ],
+            'items' => $items,
         ]);
     }
 
@@ -434,14 +722,39 @@ class ShipmentController extends Controller
         return $this->hasDestinationBranchColumn;
     }
 
-    public function assignCourier(Request $request, Shipment $shipment, ShipmentService $shipmentService)
+    public function assignCourier(Request $request, Shipment $shipment, ShipmentService $shipmentService, ApprovalWorkflowService $approvalWorkflowService)
     {
         $this->authorize('update', $shipment);
+
+        if ($request->user()?->role === 'courier') {
+            abort(403, 'Kurir tidak memiliki akses assignment kurir/kendaraan.');
+        }
 
         $validated = $request->validate([
             'courier_id' => ['nullable', 'exists:users,id'],
             'vehicle_id' => ['nullable', 'exists:vehicles,id'],
         ]);
+
+        $shipment->loadMissing('status');
+
+        if (! in_array($shipment->status?->code, [null, 'pending'], true)) {
+            $task = $approvalWorkflowService->requestShipmentReassignApproval(
+                $shipment,
+                $request->user(),
+                $validated['courier_id'] ?? null,
+                $validated['vehicle_id'] ?? null,
+                'Shipment sudah berjalan. Perubahan assignment menunggu approval.'
+            );
+
+            return response()->json([
+                'message' => 'Reassign shipment menunggu approval.',
+                'data' => [
+                    'shipment_id' => $shipment->id,
+                    'task_id' => $task->id,
+                    'task_status' => $task->status,
+                ],
+            ], 202);
+        }
 
         $shipment = $shipmentService->assignCourier(
             $shipment,
@@ -456,13 +769,16 @@ class ShipmentController extends Controller
         ]);
     }
 
-    public function transitionStatus(Request $request, Shipment $shipment, ShipmentService $shipmentService)
+    public function transitionStatus(Request $request, Shipment $shipment, ShipmentService $shipmentService, ApprovalWorkflowService $approvalWorkflowService)
     {
         $this->authorize('update', $shipment);
 
         $validated = $request->validate([
             'status_code' => ['required', 'string', 'max:40'],
             'location' => ['nullable', 'string', 'max:255'],
+            'gps_lat' => ['nullable', 'numeric', 'between:-90,90'],
+            'gps_lng' => ['nullable', 'numeric', 'between:-180,180'],
+            'gps_accuracy_m' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
             'force_transition' => ['sometimes', 'boolean'],
             'override_reason' => ['nullable', 'string', 'max:255'],
@@ -480,6 +796,32 @@ class ShipmentController extends Controller
             ]);
         }
 
+        $shipment->loadMissing('status');
+        $finalStatusCodes = config('expedition.shipment_status_flow.final_statuses', ['delivered', 'cancelled', 'returned']);
+
+        if (in_array($validated['status_code'], $finalStatusCodes, true)) {
+            $task = $approvalWorkflowService->requestShipmentFinalStatusApproval(
+                $shipment,
+                $request->user(),
+                $validated['status_code'],
+                [
+                    'location' => $validated['location'] ?? null,
+                    'notes' => $validated['notes'] ?? null,
+                    'override_reason' => $validated['override_reason'] ?? 'Perubahan status final menunggu approval.',
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Perubahan status final menunggu approval.',
+                'data' => [
+                    'shipment_id' => $shipment->id,
+                    'status_code' => $validated['status_code'],
+                    'task_id' => $task->id,
+                    'task_status' => $task->status,
+                ],
+            ], 202);
+        }
+
         $shipment = $shipmentService->transitionStatus(
             $shipment,
             $validated['status_code'],
@@ -487,13 +829,33 @@ class ShipmentController extends Controller
             $validated['location'] ?? null,
             $validated['notes'] ?? null,
             (bool) ($validated['force_transition'] ?? false),
-            $validated['override_reason'] ?? null
+            $validated['override_reason'] ?? null,
+            isset($validated['gps_lat']) ? (float) $validated['gps_lat'] : null,
+            isset($validated['gps_lng']) ? (float) $validated['gps_lng'] : null,
+            isset($validated['gps_accuracy_m']) ? (float) $validated['gps_accuracy_m'] : null
         );
 
         return response()->json([
             'message' => 'Status shipment berhasil diperbarui.',
             'data' => $shipment,
         ]);
+    }
+
+    private function assertManualCorrectionPermission(?User $actor, int $targetBranchId): void
+    {
+        if (! $actor) {
+            abort(403, 'Akses ditolak.');
+        }
+
+        if ($actor->role === 'admin') {
+            return;
+        }
+
+        if ($actor->role === 'kasir' && (int) $actor->branch_id === $targetBranchId) {
+            return;
+        }
+
+        abort(403, 'Anda tidak memiliki hak untuk koreksi manual pada shipment ini.');
     }
 
     /**

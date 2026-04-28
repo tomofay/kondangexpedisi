@@ -166,9 +166,9 @@
                 <div class="aside-card h-100">
                     <h2 class="h6 brand-font text-primary-emphasis mb-3">Hak Akses Role</h2>
                     <ul class="small text-secondary mb-0 ps-3">
-                        <li class="mb-2"><strong>Admin / Kasir / Kurir / Manager</strong>: diarahkan ke dashboard operasional internal.</li>
-                        <li class="mb-2"><strong>Customer</strong>: diarahkan ke dashboard portal pelanggan.</li>
-                        <li class="mb-2">Proteksi route memastikan role hanya bisa membuka modul sesuai kewenangan.</li>
+                        <li class="mb-2"><strong>Manager / Admin / Kasir</strong>: diarahkan ke dashboard operasional web internal.</li>
+                        <li class="mb-2"><strong>Customer / Kurir</strong>: menggunakan aplikasi Flutter (API), bukan dashboard web.</li>
+                        <li class="mb-2">Dashboard web dikhususkan untuk operasional internal perusahaan.</li>
                     </ul>
                 </div>
             </div>

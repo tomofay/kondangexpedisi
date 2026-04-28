@@ -299,7 +299,7 @@ Admin User → Dashboard.blade.php
 
 ---
 
-## 📝 Files Modified/Created
+##  Files Modified/Created
 
 ### **New Files:**
 - `app/Models/RateCardApproval.php`

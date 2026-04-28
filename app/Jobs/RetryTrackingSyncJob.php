@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class RetryTrackingSyncJob implements ShouldQueue
 {
@@ -133,5 +134,21 @@ class RetryTrackingSyncJob implements ShouldQueue
         }
 
         $operationalIssueService->resolveErrorLog($errorLog, null, 'Retry tracking sync berhasil.');
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        $errorLog = ErrorLog::query()->find($this->errorLogId);
+
+        if (! $errorLog || $errorLog->resolved_at !== null) {
+            return;
+        }
+
+        app(OperationalIssueService::class)->createManualDeadLetterTask(
+            $errorLog,
+            sprintf('Retry sinkronisasi tracking gagal setelah %d percobaan.', $this->tries),
+            self::class,
+            $exception
+        );
     }
 }

@@ -34,12 +34,20 @@ class Shipment extends Model
         'insurance_amount',
         'admin_fee',
         'total_amount',
+        'auto_subtotal_amount',
+        'auto_insurance_amount',
+        'auto_admin_fee',
+        'auto_total_amount',
+        'corrected_total_amount',
         'is_cod',
         'cod_amount',
         'payment_status',
         'processing_status',
         'processing_error',
         'pricing_mode',
+        'pricing_approval_status',
+        'pricing_approved_by',
+        'pricing_approved_at',
         'manual_override_by',
         'manual_override_reason',
         'manual_override_at',
@@ -59,7 +67,13 @@ class Shipment extends Model
             'insurance_amount' => 'decimal:2',
             'admin_fee' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'auto_subtotal_amount' => 'decimal:2',
+            'auto_insurance_amount' => 'decimal:2',
+            'auto_admin_fee' => 'decimal:2',
+            'auto_total_amount' => 'decimal:2',
+            'corrected_total_amount' => 'decimal:2',
             'cod_amount' => 'decimal:2',
+            'pricing_approved_at' => 'datetime',
             'manual_override_at' => 'datetime',
             'current_status_at' => 'datetime',
             'estimated_delivery_at' => 'datetime',
@@ -105,6 +119,11 @@ class Shipment extends Model
     public function manualOverrideBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manual_override_by');
+    }
+
+    public function pricingApprovedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pricing_approved_by');
     }
 
     public function items(): HasMany

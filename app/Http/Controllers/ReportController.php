@@ -8,6 +8,7 @@ use App\Models\CourierEarning;
 use App\Models\Payment;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Services\DailyReconciliationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -170,6 +171,24 @@ class ReportController extends Controller
             'pending' => (clone $paymentQuery)->where('status', 'pending')->count(),
             'failed' => (clone $paymentQuery)->whereIn('status', ['deny', 'expire', 'cancel', 'failed'])->count(),
             'refund' => (clone $paymentQuery)->where('status', 'refund')->count(),
+        ]);
+    }
+
+    public function dailyReconciliation(Request $request, DailyReconciliationService $dailyReconciliationService): JsonResponse
+    {
+        $validated = $request->validate([
+            'date' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $report = $dailyReconciliationService->buildForDate(
+            $validated['date'] ?? now(),
+            (int) ($validated['limit'] ?? 25)
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $report,
         ]);
     }
 

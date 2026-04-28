@@ -105,7 +105,7 @@
             </div>
             <div class="d-flex gap-2">
                 <a href="{{ route('landing') }}" class="btn btn-outline-primary rounded-pill">Landing</a>
-                <a href="{{ in_array($user->role, ['admin', 'kasir', 'courier', 'manager'], true) ? route('dashboard') : route('customer-portal.dashboard') }}" class="btn btn-kondang px-4">Dashboard</a>
+                <a href="{{ in_array($user->role, ['admin', 'kasir', 'manager'], true) ? route('dashboard') : route('landing') }}" class="btn btn-kondang px-4">Dashboard</a>
             </div>
         </div>
 

@@ -35,8 +35,7 @@ class DashboardDataController extends Controller
         return response()->json(match ($user->role) {
             'admin' => $this->adminPayload($user),
             'manager' => $this->adminPayload($user),
-            'kasir', 'courier' => $this->staffPayload($user),
-            'customer' => $this->customerPayload($user),
+            'kasir' => $this->staffPayload($user),
             default => ['message' => 'Role tidak dikenali.'],
         });
     }

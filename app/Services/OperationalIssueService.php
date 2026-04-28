@@ -2,17 +2,23 @@
 
 namespace App\Services;
 
+use App\Models\AdminTask;
 use App\Models\ErrorLog;
 use App\Models\IntegrationStatus;
 use App\Models\Payment;
 use App\Models\Shipment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class OperationalIssueService
 {
-    public function __construct(private readonly AuditLogService $auditLogService)
+    public function __construct(
+        private readonly AuditLogService $auditLogService,
+        private readonly NotificationService $notificationService
+    )
     {
     }
 
@@ -89,6 +95,19 @@ class OperationalIssueService
 
         $this->recordError('shipment', $message, array_merge($context, ['shipment_id' => $shipment->id]), $actor, $throwable, 'high');
 
+        $this->notificationService->notifyAdmins(
+            'shipment_error',
+            'Shipment Error Perlu Tindakan',
+            sprintf('Shipment %s mengalami error: %s', $shipment->tracking_number, $message),
+            [
+                'shipment_id' => $shipment->id,
+                'tracking_number' => $shipment->tracking_number,
+                'processing_status' => 'error',
+                'context' => $context,
+            ],
+            'high'
+        );
+
         return $shipment->fresh();
     }
 
@@ -110,6 +129,23 @@ class OperationalIssueService
         ])->save();
 
         $this->recordError('payment', $message, array_merge($context, ['payment_id' => $payment->id]), $actor, $throwable, 'high');
+
+        if ($payment->shipment) {
+            $this->notificationService->notifyShipmentCustomer(
+                $payment->shipment,
+                'payment_failed',
+                'Pembayaran Gagal Diproses',
+                sprintf('Pembayaran untuk shipment %s gagal diproses. Silakan cek metode pembayaran Anda.', $payment->shipment->tracking_number),
+                [
+                    'shipment_id' => $payment->shipment->id,
+                    'tracking_number' => $payment->shipment->tracking_number,
+                    'payment_id' => $payment->id,
+                    'payment_status' => $payment->status,
+                    'processing_status' => 'error',
+                ],
+                'high'
+            );
+        }
 
         return $payment->fresh();
     }
@@ -140,9 +176,13 @@ class OperationalIssueService
             'insurance_amount' => $attributes['insurance_amount'],
             'admin_fee' => $attributes['admin_fee'],
             'total_amount' => $attributes['total_amount'],
+                'corrected_total_amount' => $attributes['total_amount'],
             'processing_status' => 'ok',
             'processing_error' => null,
             'pricing_mode' => 'manual',
+                'pricing_approval_status' => 'approved',
+                'pricing_approved_by' => $actor->id,
+                'pricing_approved_at' => now(),
             'manual_override_by' => $actor->id,
             'manual_override_reason' => $reason,
             'manual_override_at' => now(),
@@ -214,5 +254,108 @@ class OperationalIssueService
         );
 
         return $payment->fresh();
+    }
+
+    public function createManualDeadLetterTask(
+        ErrorLog $errorLog,
+        string $reason,
+        ?string $jobClass = null,
+        ?Throwable $throwable = null,
+        ?User $actor = null
+    ): ?AdminTask {
+        if ($errorLog->resolved_at !== null) {
+            return null;
+        }
+
+        $existingTask = AdminTask::query()
+            ->where('task_type', 'retry_dead_letter')
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->where('action_data->error_log_id', $errorLog->id)
+            ->latest()
+            ->first();
+
+        if ($existingTask) {
+            return $existingTask;
+        }
+
+        $createdBy = $this->resolveAdminTaskCreator($errorLog);
+
+        if (! $createdBy) {
+            Log::warning('Gagal membuat manual dead-letter task karena tidak ada user pembuat.', [
+                'error_log_id' => $errorLog->id,
+                'reason' => $reason,
+            ]);
+
+            return null;
+        }
+
+        $task = AdminTask::query()->create([
+            'task_type' => 'retry_dead_letter',
+            'title' => sprintf('Manual Follow-up: %s', $errorLog->module),
+            'description' => $reason,
+            'assigned_to' => null,
+            'created_by' => $createdBy->id,
+            'status' => 'pending',
+            'priority' => $errorLog->severity === 'critical' ? 'high' : 'medium',
+            'action_data' => [
+                'error_log_id' => $errorLog->id,
+                'module' => $errorLog->module,
+                'error_type' => $errorLog->error_type,
+                'severity' => $errorLog->severity,
+                'retry_exhausted_at' => now()->toIso8601String(),
+                'job_class' => $jobClass,
+                'context' => is_array($errorLog->context) ? Arr::only($errorLog->context, [
+                    'shipment_id',
+                    'payment_id',
+                    'tracking_id',
+                    'operation',
+                    'order_id',
+                ]) : [],
+                'last_exception' => $throwable?->getMessage(),
+            ],
+            'notes' => 'Task dibuat otomatis dari mekanisme dead-letter retry.',
+        ]);
+
+        $this->auditLogService->record(
+            'error_log.escalate_dead_letter',
+            $errorLog,
+            $actor,
+            [],
+            [
+                'manual_task_id' => $task->id,
+                'manual_task_status' => $task->status,
+            ],
+            $reason,
+            [
+                'source' => $actor ? 'user_action' : 'system_automatic',
+                'is_manual_correction' => $actor !== null,
+                'correction_reference' => $reason,
+            ]
+        );
+
+        return $task;
+    }
+
+    private function resolveAdminTaskCreator(ErrorLog $errorLog): ?User
+    {
+        if ($errorLog->user_id) {
+            $errorActor = User::query()->find($errorLog->user_id);
+
+            if ($errorActor) {
+                return $errorActor;
+            }
+        }
+
+        $adminOrManager = User::query()
+            ->whereIn('role', ['admin', 'manager'])
+            ->where('is_active', true)
+            ->orderByRaw("CASE WHEN role = 'admin' THEN 0 ELSE 1 END")
+            ->first();
+
+        if ($adminOrManager) {
+            return $adminOrManager;
+        }
+
+        return User::query()->first();
     }
 }

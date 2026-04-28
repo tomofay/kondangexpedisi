@@ -35,4 +35,13 @@ return [
         'prefix' => 'SXP',
         'date_format' => 'Ymd',
     ],
+
+    'pricing' => [
+        'fallback' => [
+            'enabled' => true,
+            'base_price' => 15000,
+            'per_kg_price' => 7000,
+            'apply_destination_multiplier' => true,
+        ],
+    ],
 ];

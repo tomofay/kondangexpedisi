@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AdminTask;
 use App\Models\Branch;
 use App\Services\AuditLogService;
 use App\Models\Payment;
@@ -21,7 +22,10 @@ class ShipmentService
 {
     private ?bool $hasDestinationBranchColumn = null;
 
-    public function __construct(private readonly AuditLogService $auditLogService)
+    public function __construct(
+        private readonly AuditLogService $auditLogService,
+        private readonly NotificationService $notificationService
+    )
     {
     }
 
@@ -167,9 +171,33 @@ class ShipmentService
         }
 
         if (! $rateCard) {
-            throw ValidationException::withMessages([
-                'zone_id' => 'Rate card untuk rute zona asal/tujuan dan service ini belum tersedia.',
-            ]);
+            $fallbackEnabled = (bool) config('expedition.pricing.fallback.enabled', true);
+
+            if (! $fallbackEnabled) {
+                throw ValidationException::withMessages([
+                    'zone_id' => 'Rate card untuk rute zona asal/tujuan dan service ini belum tersedia.',
+                ]);
+            }
+
+            $fallbackBasePrice = (float) config('expedition.pricing.fallback.base_price', 15000);
+            $fallbackPerKgPrice = (float) config('expedition.pricing.fallback.per_kg_price', 7000);
+            $applyDestinationMultiplier = (bool) config('expedition.pricing.fallback.apply_destination_multiplier', true);
+
+            $zoneMultiplier = $applyDestinationMultiplier ? (float) $destinationZone->multiplier : 1;
+            $baseAmount = ($fallbackBasePrice * $zoneMultiplier) + ($fallbackPerKgPrice * max($weight, 1));
+            $subtotalAmount = (int) round($baseAmount);
+            $totalAmount = $subtotalAmount + (int) round($insuranceAmount) + (int) round($adminFee);
+
+            return [
+                'subtotal_amount' => $subtotalAmount,
+                'insurance_amount' => (int) round($insuranceAmount),
+                'admin_fee' => (int) round($adminFee),
+                'total_amount' => $totalAmount,
+                'rate_card_id' => null,
+                'calculation_mode' => 'fallback_estimate',
+                'requires_manual_approval' => true,
+                'calculation_note' => 'Rate card tidak ditemukan. Ongkir dihitung memakai fallback estimate dan menunggu review manual.',
+            ];
         }
 
         $zoneMultiplier = (float) $destinationZone->multiplier;
@@ -183,6 +211,9 @@ class ShipmentService
             'admin_fee' => (int) round($adminFee),
             'total_amount' => $totalAmount,
             'rate_card_id' => $rateCard->id,
+            'calculation_mode' => 'rate_card',
+            'requires_manual_approval' => false,
+            'calculation_note' => null,
         ];
     }
 
@@ -221,7 +252,18 @@ class ShipmentService
         return $shipment->fresh(['branch', 'courier', 'vehicle', 'status']);
     }
 
-    public function transitionStatus(Shipment $shipment, string $statusCode, ?int $actorId = null, ?string $location = null, ?string $notes = null, bool $forceTransition = false, ?string $overrideReason = null): Shipment
+    public function transitionStatus(
+        Shipment $shipment,
+        string $statusCode,
+        ?int $actorId = null,
+        ?string $location = null,
+        ?string $notes = null,
+        bool $forceTransition = false,
+        ?string $overrideReason = null,
+        ?float $gpsLat = null,
+        ?float $gpsLng = null,
+        ?float $gpsAccuracyM = null
+    ): Shipment
     {
         $actor = User::query()->find($actorId);
         $this->validateShipmentStatusTransition($shipment, $statusCode, $actor, $forceTransition);
@@ -256,6 +298,9 @@ class ShipmentService
             'status_id' => $status->id,
             'created_by' => $actorId,
             'location' => $location,
+            'gps_lat' => $gpsLat,
+            'gps_lng' => $gpsLng,
+            'gps_accuracy_m' => $gpsAccuracyM,
             'notes' => $trackingNotes ?: 'Status shipment diperbarui menjadi '.$status->name,
             'event_at' => now(),
         ]);
@@ -269,6 +314,23 @@ class ShipmentService
             $trackingNotes
         );
 
+        if ($actor?->role === 'courier') {
+            $this->notificationService->notifyShipmentCustomer(
+                $shipment->fresh(['customer.user']),
+                'shipment_status_updated',
+                'Status Pengiriman Diperbarui',
+                sprintf('Shipment %s sekarang berstatus %s.', $shipment->tracking_number, $status->name),
+                [
+                    'shipment_id' => $shipment->id,
+                    'tracking_number' => $shipment->tracking_number,
+                    'status_code' => $status->code,
+                    'status_name' => $status->name,
+                    'location' => $location,
+                ],
+                'medium'
+            );
+        }
+
         return $shipment->fresh(['status', 'trackings.status']);
     }
 
@@ -281,9 +343,15 @@ class ShipmentService
                 'insurance_amount' => (int) round((float) ($data['insurance_amount'] ?? 0)),
                 'admin_fee' => (int) round((float) ($data['admin_fee'] ?? 0)),
                 'total_amount' => (int) round((float) ($data['total_amount'] ?? 0)),
+                'calculation_mode' => 'manual_input',
+                'requires_manual_approval' => false,
+                'calculation_note' => null,
             ]
             : $this->calculateTotalAmount($data);
         $pendingStatusId = ShipmentStatus::query()->where('code', 'pending')->value('id');
+
+        $requiresPricingApproval = ! $manualOverride && (bool) ($amount['requires_manual_approval'] ?? false);
+        $calculationNote = $amount['calculation_note'] ?? null;
 
         $payload = [
             'tracking_number' => $this->generateTrackingNumber((int) $data['branch_id']),
@@ -306,12 +374,24 @@ class ShipmentService
             'insurance_amount' => $amount['insurance_amount'],
             'admin_fee' => $amount['admin_fee'],
             'total_amount' => $amount['total_amount'],
+            'auto_subtotal_amount' => $manualOverride ? null : $amount['subtotal_amount'],
+            'auto_insurance_amount' => $manualOverride ? null : $amount['insurance_amount'],
+            'auto_admin_fee' => $manualOverride ? null : $amount['admin_fee'],
+            'auto_total_amount' => $manualOverride ? null : $amount['total_amount'],
+            'corrected_total_amount' => $manualOverride ? $amount['total_amount'] : null,
             'is_cod' => (bool) ($data['is_cod'] ?? false),
             'cod_amount' => $data['cod_amount'] ?? 0,
             'payment_status' => 'pending',
-            'processing_status' => $manualOverride ? 'needs_manual_review' : 'ok',
-            'processing_error' => $manualOverride ? 'Shipment dibuat melalui koreksi manual.' : null,
+            'processing_status' => $requiresPricingApproval
+                ? 'needs_manual_review'
+                : ($manualOverride ? 'needs_manual_review' : 'ok'),
+            'processing_error' => $requiresPricingApproval
+                ? $calculationNote
+                : ($manualOverride ? 'Shipment dibuat melalui koreksi manual.' : null),
             'pricing_mode' => $manualOverride ? 'manual' : 'auto',
+            'pricing_approval_status' => $requiresPricingApproval ? 'pending' : ($manualOverride ? 'approved' : 'not_required'),
+            'pricing_approved_by' => $manualOverride ? $actor?->id : null,
+            'pricing_approved_at' => $manualOverride ? now() : null,
             'manual_override_by' => $manualOverride ? $actor?->id : null,
             'manual_override_reason' => $manualOverride ? ($data['manual_override_reason'] ?? null) : null,
             'manual_override_at' => $manualOverride ? now() : null,
@@ -369,7 +449,287 @@ class ShipmentService
             return $shipment;
         });
 
+        if ($requiresPricingApproval) {
+            $this->createFallbackPricingReviewTask($shipment, $actor, (string) $calculationNote);
+        }
+
         return $shipment->fresh(['branch', 'status', 'trackings', 'payments']);
+    }
+
+    public function requestPricingOverrideApproval(Shipment $shipment, User $actor, array $amounts, string $reason): AdminTask
+    {
+        $before = $shipment->only([
+            'processing_status',
+            'processing_error',
+            'pricing_approval_status',
+        ]);
+
+        $activeTask = AdminTask::query()
+            ->where('task_type', 'shipment_pricing_override_approval')
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->where('action_data->shipment_id', $shipment->id)
+            ->latest()
+            ->first();
+
+        $actionData = [
+            'shipment_id' => $shipment->id,
+            'current_amounts' => [
+                'subtotal_amount' => (float) $shipment->subtotal_amount,
+                'insurance_amount' => (float) $shipment->insurance_amount,
+                'admin_fee' => (float) $shipment->admin_fee,
+                'total_amount' => (float) $shipment->total_amount,
+            ],
+            'proposed_amounts' => [
+                'subtotal_amount' => (float) $amounts['subtotal_amount'],
+                'insurance_amount' => (float) $amounts['insurance_amount'],
+                'admin_fee' => (float) $amounts['admin_fee'],
+                'total_amount' => (float) $amounts['total_amount'],
+            ],
+            'reason' => $reason,
+            'requested_by' => $actor->id,
+            'requested_at' => now()->toIso8601String(),
+        ];
+
+        if ($activeTask) {
+            $activeTask->update([
+                'description' => $reason,
+                'priority' => 'high',
+                'action_data' => $actionData,
+            ]);
+
+            $task = $activeTask;
+        } else {
+            $task = AdminTask::query()->create([
+                'task_type' => 'shipment_pricing_override_approval',
+                'title' => 'Approval Override Tarif Shipment '.$shipment->tracking_number,
+                'description' => $reason,
+                'assigned_to' => null,
+                'created_by' => $actor->id,
+                'status' => 'pending',
+                'priority' => 'high',
+                'action_data' => $actionData,
+                'notes' => 'Menunggu approval admin untuk koreksi tarif manual.',
+            ]);
+        }
+
+        $shipment->forceFill([
+            'processing_status' => 'needs_manual_review',
+            'processing_error' => 'Menunggu approval override tarif manual.',
+            'pricing_approval_status' => 'pending',
+            'pricing_approved_by' => null,
+            'pricing_approved_at' => null,
+        ])->save();
+
+        $this->auditLogService->record(
+            'shipment.pricing_override_requested',
+            $shipment,
+            $actor,
+            $before,
+            $shipment->fresh()->only([
+                'processing_status',
+                'processing_error',
+                'pricing_approval_status',
+                'pricing_approved_by',
+                'pricing_approved_at',
+            ]),
+            $reason,
+            [
+                'source' => 'user_action',
+                'is_manual_correction' => true,
+                'correction_reference' => $reason,
+            ]
+        );
+
+        return $task;
+    }
+
+    public function approvePricingOverrideRequest(Shipment $shipment, User $approver, ?string $approvalNote = null): Shipment
+    {
+        if ($approver->role !== 'admin') {
+            throw ValidationException::withMessages([
+                'approver' => 'Hanya admin yang dapat menyetujui override tarif.',
+            ]);
+        }
+
+        $task = AdminTask::query()
+            ->where('task_type', 'shipment_pricing_override_approval')
+            ->where('status', 'pending')
+            ->where('action_data->shipment_id', $shipment->id)
+            ->latest()
+            ->first();
+
+        if (! $task) {
+            throw ValidationException::withMessages([
+                'shipment' => 'Tidak ada permintaan override tarif yang menunggu approval.',
+            ]);
+        }
+
+        $proposed = $task->action_data['proposed_amounts'] ?? null;
+
+        if (! is_array($proposed)) {
+            throw ValidationException::withMessages([
+                'shipment' => 'Data proposal tarif override tidak valid.',
+            ]);
+        }
+
+        foreach (['subtotal_amount', 'insurance_amount', 'admin_fee', 'total_amount'] as $field) {
+            if (! array_key_exists($field, $proposed)) {
+                throw ValidationException::withMessages([
+                    'shipment' => 'Data proposal tarif override tidak lengkap.',
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($shipment, $approver, $approvalNote, $task, $proposed) {
+            $reason = (string) ($task->action_data['reason'] ?? 'Override tarif manual disetujui.');
+
+            app(OperationalIssueService::class)->applyShipmentManualOverride(
+                $shipment,
+                $approver,
+                [
+                    'subtotal_amount' => (float) $proposed['subtotal_amount'],
+                    'insurance_amount' => (float) $proposed['insurance_amount'],
+                    'admin_fee' => (float) $proposed['admin_fee'],
+                    'total_amount' => (float) $proposed['total_amount'],
+                ],
+                $reason
+            );
+
+            $task->complete([
+                'decision' => 'approved',
+                'approved_by' => $approver->id,
+                'approved_at' => now()->toIso8601String(),
+                'approval_note' => $approvalNote,
+                'applied_amounts' => $proposed,
+            ]);
+
+            if ($approvalNote) {
+                $task->update([
+                    'notes' => trim(($task->notes ? $task->notes.' ' : '').'Approval note: '.$approvalNote),
+                ]);
+            }
+        });
+
+        return $shipment->fresh();
+    }
+
+    public function rejectPricingOverrideRequest(Shipment $shipment, User $approver, string $rejectionReason): Shipment
+    {
+        if ($approver->role !== 'admin') {
+            throw ValidationException::withMessages([
+                'approver' => 'Hanya admin yang dapat menolak override tarif.',
+            ]);
+        }
+
+        $task = AdminTask::query()
+            ->where('task_type', 'shipment_pricing_override_approval')
+            ->where('status', 'pending')
+            ->where('action_data->shipment_id', $shipment->id)
+            ->latest()
+            ->first();
+
+        if (! $task) {
+            throw ValidationException::withMessages([
+                'shipment' => 'Tidak ada permintaan override tarif yang menunggu review.',
+            ]);
+        }
+
+        $hasPendingFallbackReview = AdminTask::query()
+            ->where('task_type', 'shipment_pricing_fallback_review')
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->where('action_data->shipment_id', $shipment->id)
+            ->exists();
+
+        $before = $shipment->only([
+            'processing_status',
+            'processing_error',
+            'pricing_approval_status',
+            'pricing_mode',
+            'total_amount',
+        ]);
+
+        DB::transaction(function () use ($shipment, $approver, $rejectionReason, $task, $hasPendingFallbackReview, $before) {
+            $shipment->forceFill([
+                'processing_status' => $hasPendingFallbackReview ? 'needs_manual_review' : 'ok',
+                'processing_error' => $hasPendingFallbackReview
+                    ? 'Override tarif ditolak. Shipment tetap menunggu review fallback estimate.'
+                    : null,
+                'pricing_approval_status' => 'rejected',
+                'pricing_approved_by' => null,
+                'pricing_approved_at' => null,
+            ])->save();
+
+            $task->update([
+                'status' => 'cancelled',
+                'completed_at' => now(),
+                'result' => [
+                    'decision' => 'rejected',
+                    'rejected_by' => $approver->id,
+                    'rejected_at' => now()->toIso8601String(),
+                    'reason' => $rejectionReason,
+                ],
+                'notes' => trim(($task->notes ? $task->notes.' ' : '').'Rejection reason: '.$rejectionReason),
+            ]);
+
+            $this->auditLogService->record(
+                'shipment.pricing_override_rejected',
+                $shipment,
+                $approver,
+                $before,
+                $shipment->fresh()->only([
+                    'processing_status',
+                    'processing_error',
+                    'pricing_approval_status',
+                    'pricing_mode',
+                    'total_amount',
+                ]),
+                $rejectionReason,
+                [
+                    'source' => 'user_action',
+                    'is_manual_correction' => false,
+                    'correction_reference' => $rejectionReason,
+                ]
+            );
+        });
+
+        return $shipment->fresh();
+    }
+
+    private function createFallbackPricingReviewTask(Shipment $shipment, ?User $actor, string $message): void
+    {
+        $existingTask = AdminTask::query()
+            ->where('task_type', 'shipment_pricing_fallback_review')
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->where('action_data->shipment_id', $shipment->id)
+            ->latest()
+            ->first();
+
+        if ($existingTask) {
+            return;
+        }
+
+        $createdBy = $actor?->id ?? User::query()->whereIn('role', ['admin', 'manager'])->value('id') ?? User::query()->value('id');
+
+        if (! $createdBy) {
+            return;
+        }
+
+        AdminTask::query()->create([
+            'task_type' => 'shipment_pricing_fallback_review',
+            'title' => 'Review Ongkir Fallback '.$shipment->tracking_number,
+            'description' => $message,
+            'assigned_to' => null,
+            'created_by' => $createdBy,
+            'status' => 'pending',
+            'priority' => 'high',
+            'action_data' => [
+                'shipment_id' => $shipment->id,
+                'tracking_number' => $shipment->tracking_number,
+                'auto_total_amount' => (float) $shipment->auto_total_amount,
+                'reason' => $message,
+            ],
+            'notes' => 'Shipment dibuat dengan fallback tariff dan menunggu review manual.',
+        ]);
     }
 
     private function supportsDestinationBranchColumn(): bool
@@ -407,6 +767,21 @@ class ShipmentService
             'Status payment disinkronkan.'
         );
 
+        if (($before['payment_status'] ?? null) !== 'failed' && $mappedStatus === 'failed') {
+            $this->notificationService->notifyShipmentCustomer(
+                $shipment->fresh(['customer.user']),
+                'payment_failed',
+                'Pembayaran Gagal',
+                sprintf('Pembayaran untuk shipment %s berstatus gagal. Mohon lakukan pengecekan ulang.', $shipment->tracking_number),
+                [
+                    'shipment_id' => $shipment->id,
+                    'tracking_number' => $shipment->tracking_number,
+                    'payment_status' => $mappedStatus,
+                ],
+                'high'
+            );
+        }
+
         return $shipment->fresh();
     }
 
@@ -441,6 +816,8 @@ class ShipmentService
             $shipment->forceFill([
                 'subtotal_amount' => $amount['subtotal_amount'],
                 'total_amount' => $amount['total_amount'],
+                'auto_subtotal_amount' => $amount['subtotal_amount'],
+                'auto_total_amount' => $amount['total_amount'],
             ])->save();
         }
 

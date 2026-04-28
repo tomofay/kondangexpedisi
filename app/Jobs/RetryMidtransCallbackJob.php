@@ -14,6 +14,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class RetryMidtransCallbackJob implements ShouldQueue
 {
@@ -110,5 +111,21 @@ class RetryMidtransCallbackJob implements ShouldQueue
 
         $operationalIssueService->recordIntegrationSuccess('midtrans');
         $operationalIssueService->resolveErrorLog($errorLog, null, 'Retry Midtrans callback berhasil.');
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        $errorLog = ErrorLog::query()->find($this->errorLogId);
+
+        if (! $errorLog || $errorLog->resolved_at !== null) {
+            return;
+        }
+
+        app(OperationalIssueService::class)->createManualDeadLetterTask(
+            $errorLog,
+            sprintf('Retry callback Midtrans gagal setelah %d percobaan.', $this->tries),
+            self::class,
+            $exception
+        );
     }
 }

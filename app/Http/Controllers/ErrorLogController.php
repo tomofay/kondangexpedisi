@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\RetryMidtransCallbackJob;
 use App\Jobs\RetryTrackingSyncJob;
+use App\Models\AdminTask;
 use App\Models\ErrorLog;
 use App\Services\OperationalIssueService;
 use Illuminate\Http\JsonResponse;
@@ -184,6 +185,81 @@ class ErrorLogController extends Controller
         ]);
     }
 
+    public function manualDeadLetterQueue(Request $request): JsonResponse
+    {
+        $perPage = min(max((int) $request->integer('per_page', 25), 5), 100);
+
+        $query = AdminTask::query()
+            ->where('task_type', 'retry_dead_letter')
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->with(['assignee:id,name,email', 'creator:id,name,email'])
+            ->latest();
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->string('priority'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        $errorLogIds = collect($paginator->items())
+            ->map(fn (AdminTask $task) => (int) ($task->action_data['error_log_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $errorLogs = ErrorLog::query()
+            ->whereIn('id', $errorLogIds)
+            ->get()
+            ->keyBy('id');
+
+        $items = collect($paginator->items())->map(function (AdminTask $task) use ($errorLogs) {
+            $errorLogId = (int) ($task->action_data['error_log_id'] ?? 0);
+            $errorLog = $errorLogId > 0 ? $errorLogs->get($errorLogId) : null;
+
+            return [
+                'task_id' => $task->id,
+                'title' => $task->title,
+                'description' => $task->description,
+                'status' => $task->status,
+                'priority' => $task->priority,
+                'created_at' => $task->created_at,
+                'assignee' => $task->assignee,
+                'creator' => $task->creator,
+                'action_data' => $task->action_data,
+                'error_log' => $errorLog ? [
+                    'id' => $errorLog->id,
+                    'module' => $errorLog->module,
+                    'error_type' => $errorLog->error_type,
+                    'severity' => $errorLog->severity,
+                    'message' => $errorLog->message,
+                    'resolved_at' => $errorLog->resolved_at,
+                    'detail_endpoint' => route('error-logs.show', $errorLog),
+                ] : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'has_next_page' => $paginator->hasMorePages(),
+            ],
+            'summary' => [
+                'pending_total' => AdminTask::query()->where('task_type', 'retry_dead_letter')->where('status', 'pending')->count(),
+                'in_progress_total' => AdminTask::query()->where('task_type', 'retry_dead_letter')->where('status', 'in_progress')->count(),
+                'high_priority_total' => AdminTask::query()->where('task_type', 'retry_dead_letter')->where('priority', 'high')->whereIn('status', ['pending', 'in_progress'])->count(),
+            ],
+            'items' => $items,
+        ]);
+    }
+
     public function retry(Request $request, ErrorLog $errorLog): JsonResponse
     {
         if ($errorLog->resolved_at !== null) {
@@ -216,6 +292,43 @@ class ErrorLogController extends Controller
                 'queued_at' => now(),
             ],
         ], 202);
+    }
+
+    public function escalateToManual(Request $request, ErrorLog $errorLog, OperationalIssueService $operationalIssueService): JsonResponse
+    {
+        if ($errorLog->resolved_at !== null) {
+            return response()->json([
+                'message' => 'Error log sudah terselesaikan.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $task = $operationalIssueService->createManualDeadLetterTask(
+            $errorLog,
+            $validated['reason'],
+            null,
+            null,
+            $request->user()
+        );
+
+        if (! $task) {
+            return response()->json([
+                'message' => 'Task manual tidak bisa dibuat. Pastikan ada user admin/manager aktif.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Error log berhasil dieskalasi ke antrian manual.',
+            'data' => [
+                'error_log_id' => $errorLog->id,
+                'task_id' => $task->id,
+                'task_status' => $task->status,
+                'manual_queue_endpoint' => route('error-logs.manual-dead-letter-queue'),
+            ],
+        ], 201);
     }
 
     public function resolve(Request $request, ErrorLog $errorLog, OperationalIssueService $operationalIssueService): JsonResponse

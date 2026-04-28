@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\RateCard;
+use App\Services\ApprovalWorkflowService;
 use Illuminate\Http\Request;
 
 class RateCardController extends Controller
@@ -116,7 +117,7 @@ class RateCardController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, RateCard $rateCard)
+    public function update(Request $request, RateCard $rateCard, ApprovalWorkflowService $approvalWorkflowService)
     {
         $validated = $request->validate([
             'origin_zone_id' => ['sometimes', 'nullable', 'exists:zones,id'],
@@ -139,9 +140,17 @@ class RateCardController extends Controller
             $validated['zone_id'] = $validated['destination_zone_id'];
         }
 
-        $rateCard->update($validated);
+        $approval = $approvalWorkflowService->requestRateCardApproval(
+            $rateCard,
+            $request->user(),
+            array_merge($rateCard->only(array_keys($validated)), $validated),
+            $request->input('reason', 'Perubahan rate card menunggu approval.')
+        );
 
-        return response()->json(['message' => 'Rate card updated.', 'data' => $rateCard->fresh()->load(['originZone', 'destinationZone'])]);
+        return response()->json([
+            'message' => 'Perubahan rate card menunggu approval.',
+            'data' => $approval->load(['rateCard.originZone', 'rateCard.destinationZone', 'requester', 'approver']),
+        ], 202);
     }
 
     /**

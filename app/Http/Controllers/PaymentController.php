@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Payment;
+use App\Services\ApprovalWorkflowService;
 use App\Services\AuditLogService;
 use App\Services\OperationalIssueService;
 use Illuminate\Http\Request;
@@ -125,7 +126,7 @@ class PaymentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Payment $payment, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService)
+    public function update(Request $request, Payment $payment, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService, ApprovalWorkflowService $approvalWorkflowService)
     {
         $this->authorize('update', $payment);
 
@@ -145,6 +146,27 @@ class PaymentController extends Controller
             throw ValidationException::withMessages([
                 'manual_override_reason' => 'Alasan override manual wajib diisi.',
             ]);
+        }
+
+        $sensitiveStatuses = ['settlement', 'refund'];
+
+        if (isset($validated['status']) && in_array($validated['status'], $sensitiveStatuses, true)) {
+            $task = $approvalWorkflowService->requestPaymentManualStatusApproval(
+                $payment,
+                $request->user(),
+                $validated['status'],
+                $validated['manual_override_reason'] ?? $validated['notes'] ?? 'Perubahan status payment sensitif menunggu approval.'
+            );
+
+            return response()->json([
+                'message' => 'Perubahan status payment sensitif menunggu approval.',
+                'data' => [
+                    'payment_id' => $payment->id,
+                    'status' => $validated['status'],
+                    'task_id' => $task->id,
+                    'task_status' => $task->status,
+                ],
+            ], 202);
         }
 
         if ($manualOverride) {
