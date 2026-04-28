@@ -545,9 +545,9 @@ class ShipmentService
 
     public function approvePricingOverrideRequest(Shipment $shipment, User $approver, ?string $approvalNote = null): Shipment
     {
-        if ($approver->role !== 'admin') {
+        if (! in_array($approver->role, ['admin', 'manager'], true)) {
             throw ValidationException::withMessages([
-                'approver' => 'Hanya admin yang dapat menyetujui override tarif.',
+                'approver' => 'Hanya admin atau manager yang dapat menyetujui override tarif.',
             ]);
         }
 
@@ -615,9 +615,9 @@ class ShipmentService
 
     public function rejectPricingOverrideRequest(Shipment $shipment, User $approver, string $rejectionReason): Shipment
     {
-        if ($approver->role !== 'admin') {
+        if (! in_array($approver->role, ['admin', 'manager'], true)) {
             throw ValidationException::withMessages([
-                'approver' => 'Hanya admin yang dapat menolak override tarif.',
+                'approver' => 'Hanya admin atau manager yang dapat menolak override tarif.',
             ]);
         }
 

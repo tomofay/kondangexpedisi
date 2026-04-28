@@ -38,13 +38,13 @@ class ShipmentController extends Controller
 
         $query = Shipment::query()->with(['branch', 'destinationBranch', 'courier', 'status']);
 
-        if (in_array($actor?->role, ['kasir'], true)) {
-            $managerBranch = Branch::query()->find($actor->branch_id);
+        if (in_array($actor?->role, ['kasir', 'manager'], true)) {
+            $branch = Branch::query()->find($actor->branch_id);
 
-            if (! $managerBranch || ! $managerBranch->is_active) {
+            if (! $branch || ! $branch->is_active) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->where('branch_id', $managerBranch->id);
+                $query->where('branch_id', $branch->id);
             }
         }
 

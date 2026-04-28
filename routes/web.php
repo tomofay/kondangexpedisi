@@ -30,6 +30,8 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', PublicLandingController::class)->name('landing');
+Route::get('/api/track', [PublicLandingController::class, 'track'])->name('api.track');
+Route::get('/api/quote', [PublicLandingController::class, 'quote'])->name('api.quote');
 
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'role:admin,kasir,manager'])

@@ -16,6 +16,7 @@ class ReportController extends Controller
 {
     public function summary(Request $request): JsonResponse
     {
+        $actor = $request->user();
         [$fromDate, $untilDate] = $this->resolveDateRange($request);
 
         $shipmentQuery = Shipment::query()->when($fromDate || $untilDate, function ($query) use ($fromDate, $untilDate) {
@@ -25,6 +26,11 @@ class ReportController extends Controller
         $paymentQuery = Payment::query()->when($fromDate || $untilDate, function ($query) use ($fromDate, $untilDate) {
             $this->applyDateRange($query, 'created_at', $fromDate, $untilDate);
         });
+
+        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+            $shipmentQuery->where('branch_id', $actor->branch_id);
+            $paymentQuery->whereHas('shipment', fn ($q) => $q->where('branch_id', $actor->branch_id));
+        }
 
         return response()->json([
             'period' => [

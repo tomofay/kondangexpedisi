@@ -18,8 +18,8 @@ class ApprovalController extends Controller
         abort_unless($actor && in_array($actor->role, ['admin', 'manager'], true), 403, 'Hanya admin/manager yang dapat melihat approval queue.');
 
         $validated = $request->validate([
-            'scope' => ['nullable', Rule::in(['all', 'rate_card', 'shipment_final_status', 'shipment_reassign', 'payment_manual_status'])],
-            'status' => ['nullable', Rule::in(['pending', 'in_progress', 'completed', 'cancelled', 'all'])],
+            'scope' => ['nullable', Rule::in(['all', 'rate_card', 'shipment_final_status', 'shipment_reassign', 'payment_manual_status', 'approve_rate_card', 'shipment_final_status_approval', 'shipment_reassign_approval'])],
+            'status' => ['nullable', Rule::in(['pending', 'in_progress', 'completed', 'cancelled', 'all', 'rejected'])],
             'per_page' => ['nullable', 'integer', 'min:5', 'max:100'],
         ]);
 
@@ -29,15 +29,24 @@ class ApprovalController extends Controller
 
         $taskQuery = AdminTask::query()->with(['creator:id,name,email', 'assignee:id,name,email'])->latest();
 
+        if ($actor->role === 'manager') {
+            $taskQuery->where(function ($q) use ($actor) {
+                $q->whereHas('creator', fn ($u) => $q->where('branch_id', $actor->branch_id))
+                    ->orWhere('action_data->branch_id', $actor->branch_id)
+                    ->orWhereRaw("JSON_EXTRACT(action_data, '$.shipment_id') IN (SELECT id FROM shipments WHERE branch_id = ?)", [$actor->branch_id]);
+            });
+        }
+
         if ($status !== 'all') {
             $taskQuery->where('status', $status === 'pending' ? ['pending', 'in_progress'] : $status);
         }
 
         if ($scope !== 'all') {
             $taskQuery->where('task_type', match ($scope) {
-                'shipment_final_status' => 'shipment_final_status_approval',
-                'shipment_reassign' => 'shipment_reassign_approval',
-                'payment_manual_status' => 'payment_manual_status_approval',
+                'shipment_final_status', 'shipment_final_status_approval' => 'shipment_final_status_approval',
+                'shipment_reassign', 'shipment_reassign_approval' => 'shipment_reassign_approval',
+                'payment_manual_status', 'payment_manual_status_approval' => 'payment_manual_status_approval',
+                'rate_card', 'approve_rate_card' => 'approve_rate_card',
                 default => $scope,
             });
         }

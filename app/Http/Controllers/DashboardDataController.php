@@ -34,7 +34,7 @@ class DashboardDataController extends Controller
 
         return response()->json(match ($user->role) {
             'admin' => $this->adminPayload($user),
-            'manager' => $this->adminPayload($user),
+            'manager' => $this->staffPayload($user),
             'kasir' => $this->staffPayload($user),
             default => ['message' => 'Role tidak dikenali.'],
         });
@@ -201,9 +201,9 @@ class DashboardDataController extends Controller
         $paymentQuery = Payment::query();
         $trackingQuery = ShipmentTracking::query()->with(['shipment.status', 'status']);
 
-        if (in_array($user->role, ['kasir', 'courier'], true) && $user->branch_id) {
+        if (in_array($user->role, ['kasir', 'courier', 'manager'], true) && $user->branch_id) {
             $branch = Branch::query()->find($user->branch_id);
-            $isStaffWithInactiveBranch = in_array($user->role, ['kasir'], true) && (! $branch || ! $branch->is_active);
+            $isStaffWithInactiveBranch = in_array($user->role, ['kasir', 'manager'], true) && (! $branch || ! $branch->is_active);
 
             if ($isStaffWithInactiveBranch) {
                 $shipmentQuery->whereRaw('1 = 0');

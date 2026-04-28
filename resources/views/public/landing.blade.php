@@ -3,643 +3,600 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kondang Ekspedisi</title>
-    <meta name="description" content="Kondang Ekspedisi - layanan pengiriman modern, cepat, aman, dan transparan.">
+    <title>Kondang Ekspedisi - Solusi Logistik Terpercaya & Cepat</title>
+    <meta name="description" content="Layanan pengiriman paket profesional dengan sistem pelacakan real-time dan jangkauan nasional.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 
     <style>
         :root {
-            --k-white: #ffffff;
-            --k-paper: #f5f9ff;
-            --k-line: #d9e7ff;
-            --k-blue-900: #0b2b67;
-            --k-blue-800: #17479c;
-            --k-blue-700: #2769d8;
-            --k-blue-500: #4f9bff;
-            --k-text: #14284b;
-            --k-muted: #60759a;
-            --k-shadow: 0 16px 40px rgba(22, 68, 150, 0.14);
+            --primary: #0061FF;
+            --primary-dark: #004ecc;
+            --secondary: #0B2B67;
+            --text-main: #172B4D;
+            --text-muted: #6B778C;
+            --bg-light: #F4F7FA;
+            --white: #FFFFFF;
+            --k-shadow: 0 20px 40px rgba(0, 97, 255, 0.08);
         }
 
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            color: var(--k-text);
-            background:
-                radial-gradient(860px 360px at 6% -6%, #dbe9ff 0%, transparent 70%),
-                radial-gradient(900px 460px at 100% 0%, #e9f2ff 0%, transparent 62%),
-                linear-gradient(180deg, #f8fbff 0%, #ffffff 54%);
+            color: var(--text-main);
+            background-color: var(--white);
+            overflow-x: hidden;
         }
 
-        h1, h2, h3, h4, .brand-font {
-            font-family: 'Sora', sans-serif;
-            letter-spacing: -0.02em;
+        h1, h2, h3, h4, .font-sora { font-family: 'Sora', sans-serif; }
+
+        /* Smooth Navbar */
+        .navbar {
+            padding: 1.25rem 0;
+            transition: all 0.3s ease;
+            background: transparent;
         }
 
-        .navbar-kondang {
+        .navbar.scrolled {
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.88);
-            border-bottom: 1px solid var(--k-line);
+            padding: 0.8rem 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.04);
         }
 
-        .brand-chip {
-            border: 1px solid #c6ddff;
-            color: var(--k-blue-800);
-            background: #edf4ff;
-            border-radius: 999px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.11em;
-            text-transform: uppercase;
-            padding: 0.35rem 0.75rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
+        .navbar-brand { font-weight: 800; font-size: 1.5rem; color: var(--secondary) !important; }
+        .navbar-brand span { color: var(--primary); }
 
-        .brand-chip::before {
-            content: '';
-            width: 7px;
-            height: 7px;
-            border-radius: 999px;
-            background: var(--k-blue-500);
-            box-shadow: 0 0 10px rgba(79, 155, 255, 0.9);
-        }
+        .nav-link { font-weight: 700; color: var(--secondary) !important; margin: 0 10px; }
 
-        .hero-section {
+        /* Hero Style */
+        .hero-wrap {
+            padding: 180px 0 120px;
+            background: radial-gradient(circle at 100% 0%, #F0F7FF 0%, #FFFFFF 60%);
             position: relative;
-            overflow: hidden;
-            padding-top: 5.5rem;
-            padding-bottom: 4.5rem;
         }
 
-        .hero-card {
-            background: rgba(255, 255, 255, 0.82);
-            border: 1px solid rgba(255, 255, 255, 0.95);
-            box-shadow: var(--k-shadow);
-            border-radius: 28px;
-            backdrop-filter: blur(10px);
+        .hero-title { font-size: 4rem; font-weight: 800; line-height: 1.1; color: var(--secondary); letter-spacing: -1.5px; }
+        .hero-title span { color: var(--primary); }
+
+        /* Professional Action Card */
+        .action-container {
+            background: white;
+            border-radius: 30px;
+            padding: 2.5rem;
+            box-shadow: 0 30px 60px rgba(0, 97, 255, 0.12);
+            border: 1px solid #E2E8F0;
         }
 
-        .floating-orb {
-            position: absolute;
-            border-radius: 999px;
-            border: 1px solid rgba(39, 105, 216, 0.2);
-            animation: orbit 19s linear infinite;
+        .nav-tabs-clean {
+            border: none;
+            background: #F8FAFC;
+            padding: 6px;
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            display: flex;
         }
 
-        .floating-orb::before {
-            content: '';
-            position: absolute;
-            top: -5px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: var(--k-blue-500);
-            box-shadow: 0 0 14px rgba(79, 155, 255, 0.85);
+        .nav-tabs-clean .nav-link {
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            color: var(--text-muted);
+            font-weight: 700;
+            flex: 1;
+            transition: 0.3s;
         }
 
-        .metric-box,
-        .surface-box {
-            border: 1px solid var(--k-line);
+        .nav-tabs-clean .nav-link.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .input-clean-group {
+            background: #F8FAFC;
             border-radius: 18px;
-            background: var(--k-white);
-            box-shadow: 0 8px 24px rgba(11, 43, 103, 0.08);
+            padding: 4px 8px;
+            display: flex;
+            align-items: center;
+            border: none;
+            transition: 0.3s;
         }
 
-        .metric-box {
-            background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+        .input-clean-group:focus-within {
+            background: white;
+            box-shadow: 0 0 0 4px rgba(0, 97, 255, 0.08);
+        }
+
+        .input-clean-group i { color: var(--primary); margin-right: 12px; font-size: 1.1rem; }
+        .input-clean-group input, .input-clean-group select {
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            font-weight: 600;
+            width: 100%;
+            padding: 12px 0;
+            color: var(--secondary);
+            font-size: 1rem;
+        }
+
+        .input-clean-group select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%230061FF' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 40px;
+        }
+
+        .btn-kondang-solid {
+            background: var(--primary);
+            color: white;
+            padding: 1.1rem;
+            border-radius: 14px;
+            font-weight: 800;
+            border: none;
+            transition: 0.3s;
+            box-shadow: 0 10px 20px rgba(0, 97, 255, 0.2);
+        }
+
+        .btn-kondang-solid:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 15px 30px rgba(0, 97, 255, 0.3); }
+
+        /* Dynamic Result */
+        .dynamic-result {
+            display: none;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border-radius: 24px;
+            background: #F0F7FF;
+            border: 1px solid rgba(0, 97, 255, 0.1);
+        }
+
+        .timeline-line {
+            border-left: 2px dashed var(--primary);
+            margin-left: 1rem;
+            padding-left: 2rem;
+            position: relative;
+        }
+
+        .timeline-point {
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -39px;
+            top: 5px;
+            width: 14px;
+            height: 14px;
+            background: var(--primary);
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 4px #EBF3FF;
+        }
+
+        /* Features Section */
+        .card-service {
+            border: none;
+            border-radius: 30px;
+            padding: 3rem 2rem;
+            transition: all 0.4s ease;
+            background: #F8FAFC;
+            height: 100%;
+            border: 1px solid transparent;
+        }
+
+        .card-service:hover {
+            background: white;
+            transform: translateY(-15px);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.05);
+            border-color: #EBF3FF;
+        }
+
+        .icon-circle {
+            width: 70px;
+            height: 70px;
+            background: white;
+            color: var(--primary);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin: 0 auto 2rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.03);
+        }
+
+        /* Section Typography */
+        .section-tag {
+            text-transform: uppercase;
+            font-weight: 800;
+            font-size: 0.85rem;
+            color: var(--primary);
+            letter-spacing: 2px;
+            display: block;
+            margin-bottom: 1rem;
         }
 
         .section-title {
-            color: var(--k-blue-900);
-            font-size: clamp(1.6rem, 2.8vw, 2.1rem);
-            margin-bottom: 0.4rem;
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--secondary);
+            margin-bottom: 1.5rem;
         }
 
-        .section-subtitle {
-            color: var(--k-muted);
-            max-width: 680px;
+        /* Stats Strip */
+        .stats-strip {
+            background: var(--secondary);
+            color: white;
+            padding: 60px 0;
         }
 
-        .feature-card {
-            border: 1px solid var(--k-line);
-            border-radius: 18px;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
-            height: 100%;
+        /* Footer Modern */
+        .footer-main {
+            background: #051937;
+            color: white;
+            padding: 100px 0 40px;
+            margin-top: 100px;
         }
 
-        .feature-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 28px rgba(16, 73, 165, 0.14);
+        .footer-link {
+            color: #A0AEC0;
+            text-decoration: none;
+            transition: 0.3s;
+            display: block;
+            margin-bottom: 1rem;
+            font-weight: 500;
         }
 
-        .section-pad {
-            padding-top: 3.25rem;
-            padding-bottom: 3.25rem;
-        }
+        .footer-link:hover { color: white; padding-left: 5px; }
 
-        .calculator-wrap {
-            background: linear-gradient(145deg, var(--k-blue-900) 0%, var(--k-blue-800) 40%, #2d74e2 100%);
-            color: #eef5ff;
-            border-radius: 24px;
-            box-shadow: 0 20px 42px rgba(15, 58, 134, 0.34);
-        }
-
-        .calculator-wrap .form-control,
-        .calculator-wrap .form-select {
+        .social-btn {
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
-            border: 1px solid #a9c8ff;
-            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin-right: 10px;
+            transition: 0.3s;
         }
 
-        .calculator-wrap .form-check-input:checked {
-            background-color: #3f8fff;
-            border-color: #3f8fff;
-        }
-
-        .timeline-item {
-            border: 1px solid var(--k-line);
-            border-radius: 14px;
-            background: #ffffff;
-            padding: 1rem;
-            position: relative;
-            margin-bottom: 0.75rem;
-        }
-
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -8px;
-            top: 1.2rem;
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-            background: var(--k-blue-500);
-            box-shadow: 0 0 0 4px #eaf3ff;
-        }
-
-        .faq-item {
-            border: 1px solid var(--k-line);
-            border-radius: 14px;
-            overflow: hidden;
-            background: #ffffff;
-        }
-
-        .faq-item .accordion-button {
-            font-weight: 700;
-            color: var(--k-blue-900);
-        }
-
-        .faq-item .accordion-button:not(.collapsed) {
-            color: var(--k-blue-900);
-            background: #eff5ff;
-        }
-
-        .testimonial-card {
-            border: 1px solid var(--k-line);
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow: 0 10px 20px rgba(11, 43, 103, 0.06);
-            height: 100%;
-        }
-
-        .contact-card {
-            border: 1px solid var(--k-line);
-            border-radius: 14px;
-            background: #ffffff;
-        }
-
-        .reveal {
-            opacity: 0;
-            transform: translateY(18px);
-            transition: opacity 0.5s ease, transform 0.5s ease;
-        }
-
-        .reveal.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .btn-kondang-primary {
-            background: linear-gradient(90deg, #1e63cf 0%, #448ff9 100%);
-            border: none;
-            color: #ffffff;
-            box-shadow: 0 10px 20px rgba(24, 87, 192, 0.3);
-        }
-
-        .btn-kondang-primary:hover {
-            color: #ffffff;
-            filter: brightness(0.96);
-        }
-
-        .btn-kondang-outline {
-            border: 1px solid #9fc3ff;
-            color: var(--k-blue-800);
-            background: #ffffff;
-        }
-
-        .footer-wrap {
-            border-top: 1px solid var(--k-line);
-            background: #ffffff;
-            color: #6e84a8;
-        }
-
-        @keyframes orbit {
-            from { transform: rotate(0); }
-            to { transform: rotate(360deg); }
-        }
+        .social-btn:hover { background: var(--primary); color: white; transform: translateY(-3px); }
 
         @media (max-width: 991.98px) {
-            .hero-section {
-                padding-top: 4.5rem;
-                padding-bottom: 2.8rem;
-            }
-
-            .section-pad {
-                padding-top: 2.35rem;
-                padding-bottom: 2.35rem;
-            }
+            .hero-title { font-size: 3rem; }
+            .action-container { margin-top: 3rem; }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-kondang fixed-top">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg fixed-top" id="topNav">
         <div class="container">
-            <a class="navbar-brand fw-bold brand-font text-primary-emphasis" href="#">Kondang Ekspedisi</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
+            <a class="navbar-brand" href="/">KONDANG<span>EKSPEDISI</span></a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+                <i class="bi bi-list fs-1"></i>
             </button>
-            <div class="collapse navbar-collapse" id="mainNav">
-                <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+            <div class="collapse navbar-collapse" id="navContent">
+                <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item"><a class="nav-link" href="#layanan">Layanan</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#kalkulator">Kalkulator</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#tracking">Tracking</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#kontak">Kontak</a></li>
-                    <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
-                        <a href="{{ route('login') }}" class="btn btn-sm btn-kondang-outline rounded-pill px-3">Login</a>
+                    <li class="nav-item"><a class="nav-link" href="#estimasi">Cek Tarif</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#tentang">Tentang Kami</a></li>
+                    <li class="nav-item ms-lg-4">
+                        <a href="{{ route('login') }}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold">Dashboard Admin</a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <main>
-        <section class="hero-section">
-            <div class="container position-relative">
-                <div class="floating-orb" style="width: 240px; height: 240px; right: -30px; top: -10px;"></div>
-                <div class="floating-orb" style="width: 330px; height: 330px; right: 70px; top: 30px; animation-duration: 26s;"></div>
-
-                <div class="row g-4 align-items-center">
-                    <div class="col-lg-6 reveal">
-                        <span class="brand-chip mb-3">Ekspedisi Modern</span>
-                        <h1 class="display-5 fw-bold text-primary-emphasis mb-3">{{ $hero['title'] ?? 'Kondang Ekspedisi' }}</h1>
-                        <p class="lead text-secondary mb-2">{{ $hero['subtitle'] ?? 'Layanan kirim barang cepat, aman, dan terpantau real-time.' }}</p>
-                        <p class="text-muted mb-4">{{ $hero['content'] ?? 'Didukung armada aktif, tracking transparan, dan pembayaran online Midtrans Sandbox.' }}</p>
-                        <div class="d-flex flex-wrap gap-2">
-                            <a href="{{ $hero['cta_url'] ?? '#tracking' }}" class="btn btn-kondang-primary rounded-pill px-4 py-2 fw-semibold">{{ $hero['cta_label'] ?? 'Lacak Resi' }}</a>
-                            <a href="#kalkulator" class="btn btn-kondang-outline rounded-pill px-4 py-2 fw-semibold">Hitung Ongkir</a>
+    <!-- Hero Section -->
+    <div class="hero-wrap">
+        <div class="container">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-5 animate__animated animate__fadeIn">
+                    <span class="section-tag">Logistik Generasi Baru</span>
+                    <h1 class="hero-title">Kirim Paket Secepat <span>Kilat.</span></h1>
+                    <p class="text-muted fs-5 mb-5">Keamanan paket Anda adalah prioritas kami. Didukung sistem tracking tercanggih untuk ketenangan pikiran Anda.</p>
+                    
+                    <div class="row g-4 mb-4">
+                        <div class="col-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-primary-light text-primary p-2 rounded-3" style="background-color: #EBF3FF;"><i class="bi bi-shield-fill-check fs-4"></i></div>
+                                <span class="fw-bold small">Fully Insured</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-primary-light text-primary p-2 rounded-3" style="background-color: #EBF3FF;"><i class="bi bi-geo-alt-fill fs-4"></i></div>
+                                <span class="fw-bold small">National Coverage</span>
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="col-lg-6 reveal">
-                        <div class="hero-card p-4 p-lg-5">
-                            <h2 class="h4 text-primary-emphasis mb-4">Ringkasan Layanan Kondang</h2>
-                            <div class="row g-3">
-                                @foreach ($statistics as $stat)
-                                    <div class="col-12">
-                                        <div class="metric-box p-3 p-md-4">
-                                            <div class="h3 fw-bold text-primary-emphasis mb-1">{{ $stat['content'] ?? '-' }}</div>
-                                            <div class="small text-uppercase fw-semibold text-secondary">{{ $stat['title'] ?? 'Statistik' }}</div>
+                <div class="col-lg-7">
+                    <div class="action-container animate__animated animate__fadeInRight">
+                        <nav class="nav-tabs-clean" role="tablist">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pnl-track">Lacak Paket</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pnl-quote">Cek Tarif</button>
+                        </nav>
+
+                        <div class="tab-content">
+                            <!-- Form Lacak -->
+                            <div class="tab-pane fade show active" id="pnl-track">
+                                <form id="formLacak">
+                                    <div class="row g-4">
+                                        <div class="col-md-6">
+                                            <label class="small fw-extrabold text-muted mb-2">NOMOR RESI</label>
+                                            <div class="input-clean-group"><i class="bi bi-upc-scan"></i><input type="text" name="tracking_number" placeholder="KND-2026-..." required></div>
                                         </div>
+                                        <div class="col-md-6">
+                                            <label class="small fw-extrabold text-muted mb-2">TELEPON PENERIMA</label>
+                                            <div class="input-clean-group"><i class="bi bi-phone"></i><input type="text" name="recipient_phone" placeholder="08XXXXXXXXXX" required></div>
+                                        </div>
+                                        <div class="col-12"><button type="submit" class="btn-kondang-solid w-100">LACAK PENGIRIMAN SEKARANG</button></div>
                                     </div>
-                                @endforeach
+                                </form>
+                                <div id="hasilLacak" class="dynamic-result"></div>
+                            </div>
+
+                            <!-- Form Tarif -->
+                            <div class="tab-pane fade" id="pnl-quote">
+                                <form id="formTarif">
+                                    <div class="row g-4">
+                                        <div class="col-md-6">
+                                            <label class="small fw-extrabold text-muted mb-2">ASAL PENGIRIMAN</label>
+                                            <div class="input-clean-group"><i class="bi bi-geo-fill"></i>
+                                                <select name="origin_branch_id" required>
+                                                    <option value="">Pilih Kota Asal</option>
+                                                    @foreach($branches as $b) <option value="{{$b->id}}">{{$b->city}}</option> @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="small fw-extrabold text-muted mb-2">TUJUAN PENGIRIMAN</label>
+                                            <div class="input-clean-group"><i class="bi bi-send-fill"></i>
+                                                <select name="destination_branch_id" required>
+                                                    <option value="">Pilih Kota Tujuan</option>
+                                                    @foreach($branches as $b) <option value="{{$b->id}}">{{$b->city}}</option> @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="small fw-extrabold text-muted mb-2">BERAT ESTIMASI (KG)</label>
+                                            <div class="input-clean-group"><i class="bi bi-box-seam-fill"></i><input type="number" name="weight_kg" value="1" min="1"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="small fw-extrabold text-muted mb-2">PILIH LAYANAN</label>
+                                            <div class="input-clean-group"><i class="bi bi-lightning-charge-fill"></i>
+                                                <select name="service_type">
+                                                    @foreach($serviceTypes as $s) <option value="{{$s}}">{{strtoupper($s)}}</option> @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-12"><button type="submit" class="btn-kondang-solid w-100">HITUNG ESTIMASI ONGKIR</button></div>
+                                    </div>
+                                </form>
+                                <div id="hasilTarif" class="dynamic-result"></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </div>
 
-        <section id="layanan" class="section-pad">
-            <div class="container">
-                <div class="mb-4 reveal">
-                    <h2 class="section-title">Layanan Pengiriman</h2>
-                    <p class="section-subtitle mb-0">Seluruh blok layanan ditarik dari data landing_page_contents agar mudah dikontrol dari backoffice.</p>
+    <!-- Stats Strip -->
+    <div class="stats-strip">
+        <div class="container text-center">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <h2 class="fw-bold mb-0">2.5K+</h2>
+                    <p class="text-white-50 mb-0 small">Paket Berhasil Terkirim</p>
                 </div>
-
-                <div class="row g-3 g-lg-4">
-                    @foreach ($features as $feature)
-                        <div class="col-md-6 col-xl-4 reveal">
-                            <article class="feature-card p-4">
-                                <h3 class="h5 text-primary-emphasis mb-2">{{ $feature['title'] ?? 'Layanan' }}</h3>
-                                @if (!empty($feature['subtitle']))
-                                    <div class="fw-semibold text-primary mb-2">{{ $feature['subtitle'] }}</div>
-                                @endif
-                                <p class="text-muted mb-0">{{ $feature['content'] ?? '-' }}</p>
-                            </article>
-                        </div>
-                    @endforeach
+                <div class="col-md-4 border-start border-end border-white border-opacity-10">
+                    <h2 class="fw-bold mb-0">500+</h2>
+                    <p class="text-white-50 mb-0 small">Armada Kurir Profesional</p>
+                </div>
+                <div class="col-md-4">
+                    <h2 class="fw-bold mb-0">120+</h2>
+                    <p class="text-white-50 mb-0 small">Titik Distribusi Nasional</p>
                 </div>
             </div>
-        </section>
+        </div>
+    </div>
 
-        <section id="kalkulator" class="section-pad pt-0">
-            <div class="container">
-                <div class="calculator-wrap p-4 p-md-5 reveal">
-                    <div class="row g-4 align-items-start">
-                        <div class="col-lg-5">
-                            <h2 class="h3 mb-2">Kalkulator Ongkir Publik</h2>
-                            <p class="mb-0 text-white-50">Perhitungan berbasis cabang asal ke cabang tujuan (mengikuti zona masing-masing cabang), termasuk volumetrik dan fallback tarif jika data belum lengkap.</p>
-                        </div>
-
-                        <div class="col-lg-7">
-                            <form method="GET" action="{{ route('landing') }}#kalkulator" class="row g-3">
-                                <input type="hidden" name="quote_submit" value="1">
-
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Cabang Asal</label>
-                                    <select name="origin_branch_id" class="form-select" required>
-                                        <option value="">Pilih cabang asal</option>
-                                        @foreach ($branches as $branch)
-                                            <option value="{{ $branch->id }}" @selected((string) $quoteInput['origin_branch_id'] === (string) $branch->id)>
-                                                {{ $branch->name }} ({{ $branch->zone?->name ?? 'Tanpa Zona' }})
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Cabang Tujuan</label>
-                                    <select name="destination_branch_id" class="form-select" required>
-                                        <option value="">Pilih cabang tujuan</option>
-                                        @foreach ($branches as $branch)
-                                            <option value="{{ $branch->id }}" @selected((string) $quoteInput['destination_branch_id'] === (string) $branch->id)>
-                                                {{ $branch->name }} ({{ $branch->zone?->name ?? 'Tanpa Zona' }})
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Jenis Layanan</label>
-                                    <select name="service_type" class="form-select" required>
-                                        @foreach ($serviceTypes as $serviceType)
-                                            <option value="{{ $serviceType }}" @selected($quoteInput['service_type'] === $serviceType)>{{ strtoupper($serviceType) }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Berat Aktual (kg)</label>
-                                    <input type="number" step="0.01" min="0.1" name="weight_kg" value="{{ $quoteInput['weight_kg'] }}" class="form-control" required>
-                                </div>
-
-                                <div class="col-md-2 col-4">
-                                    <label class="form-label fw-semibold">P</label>
-                                    <input type="number" step="0.01" min="1" name="length_cm" value="{{ $quoteInput['length_cm'] }}" class="form-control">
-                                </div>
-                                <div class="col-md-2 col-4">
-                                    <label class="form-label fw-semibold">L</label>
-                                    <input type="number" step="0.01" min="1" name="width_cm" value="{{ $quoteInput['width_cm'] }}" class="form-control">
-                                </div>
-                                <div class="col-md-2 col-4">
-                                    <label class="form-label fw-semibold">T</label>
-                                    <input type="number" step="0.01" min="1" name="height_cm" value="{{ $quoteInput['height_cm'] }}" class="form-control">
-                                </div>
-
-                                <div class="col-12">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="with_insurance" value="1" id="withInsurance" @checked($quoteInput['with_insurance'])>
-                                        <label class="form-check-label" for="withInsurance">Tambahkan asuransi sesuai rate card</label>
-                                    </div>
-                                </div>
-
-                                <div class="col-12">
-                                    <button type="submit" class="btn btn-light rounded-pill px-4 fw-semibold">Hitung Ongkir</button>
-                                </div>
-                            </form>
-
-                            @if ($quoteError)
-                                <div class="alert alert-danger mt-3 mb-0">{{ $quoteError }}</div>
-                            @endif
-
-                            @if ($quoteResult)
-                                <div class="surface-box mt-3 p-3 p-md-4 text-dark">
-                                    <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
-                                        <div>
-                                            <div class="text-uppercase fw-semibold small text-primary">Estimasi Kondang Ekspedisi</div>
-                                            <div class="h4 fw-bold text-primary-emphasis mb-0">Rp {{ number_format($quoteResult['total'], 0, ',', '.') }}</div>
-                                        </div>
-                                        <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
-                                            <span
-                                                class="badge rounded-pill {{ $quoteResult['fallback_message'] ? 'text-bg-warning' : 'text-bg-success' }}"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                title="{{ $quoteResult['fallback_reason'] ?? 'Tarif ditemukan tepat pada rentang berat tagih untuk layanan yang dipilih.' }}"
-                                            >
-                                                {{ $quoteResult['fallback_message'] ? 'Tarif fallback terpakai' : 'Tarif sesuai rentang berat' }}
-                                            </span>
-                                            <div class="small text-secondary">{{ $quoteResult['origin_zone_name'] }} → {{ $quoteResult['destination_zone_name'] }} | {{ strtoupper($quoteResult['service_type']) }}</div>
-                                        </div>
-                                    </div>
-                                    <div class="small text-secondary mt-2">
-                                        Rute cabang: {{ $quoteResult['origin_branch_name'] }} → {{ $quoteResult['destination_branch_name'] }}
-                                    </div>
-                                    <div class="row g-2 mt-2">
-                                        <div class="col-sm-6 col-xl-3"><div class="border rounded-3 p-2"><div class="small text-secondary">Berat aktual</div><strong>{{ number_format($quoteResult['actual_weight_kg'], 2) }} kg</strong></div></div>
-                                        <div class="col-sm-6 col-xl-3"><div class="border rounded-3 p-2"><div class="small text-secondary">Berat volumetrik</div><strong>{{ number_format($quoteResult['volumetric_weight_kg'], 2) }} kg</strong></div></div>
-                                        <div class="col-sm-6 col-xl-3"><div class="border rounded-3 p-2"><div class="small text-secondary">Berat tagih</div><strong>{{ number_format($quoteResult['billable_weight_kg'], 2) }} kg</strong></div></div>
-                                        <div class="col-sm-6 col-xl-3"><div class="border rounded-3 p-2"><div class="small text-secondary">Subtotal</div><strong>Rp {{ number_format($quoteResult['subtotal'], 0, ',', '.') }}</strong></div></div>
-                                    </div>
-                                    <div class="small text-secondary mt-2">Asuransi Rp {{ number_format($quoteResult['insurance'], 0, ',', '.') }} | Admin Rp {{ number_format($quoteResult['admin_fee'], 0, ',', '.') }}</div>
-                                    <div class="small text-secondary mt-1">
-                                        Rentang rate card terpakai:
-                                        {{ number_format($quoteResult['rate_card_min_weight_kg'], 2, '.', '') }}-
-                                        {{ $quoteResult['rate_card_max_weight_kg'] !== null ? number_format($quoteResult['rate_card_max_weight_kg'], 2, '.', '') : 'tanpa batas' }} kg
-                                    </div>
-                                    @if ($quoteResult['fallback_message'])
-                                        <div class="alert alert-warning py-2 px-3 mt-3 mb-0 small">{{ $quoteResult['fallback_message'] }}</div>
-                                    @endif
-                                </div>
-                            @endif
-                        </div>
+    <!-- Services -->
+    <section id="layanan" class="py-5 my-5">
+        <div class="container py-lg-5">
+            <div class="text-center mb-5">
+                <span class="section-tag">Layanan Kami</span>
+                <h2 class="section-title">Pilihan Pengiriman <span>Eksklusif</span></h2>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card-service text-center">
+                        <div class="icon-circle"><i class="bi bi-lightning-charge"></i></div>
+                        <h4 class="fw-bold mb-3">Kondang Express</h4>
+                        <p class="text-muted small">Prioritas pengiriman kilat dengan jaminan tiba di hari yang sama atau keesokan harinya untuk wilayah tertentu.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card-service text-center">
+                        <div class="icon-circle"><i class="bi bi-truck"></i></div>
+                        <h4 class="fw-bold mb-3">Kondang Reguler</h4>
+                        <p class="text-muted small">Layanan pengiriman paket standar dengan biaya terjangkau dan jangkauan pengiriman paling luas di Indonesia.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card-service text-center">
+                        <div class="icon-circle"><i class="bi bi-box-seam"></i></div>
+                        <h4 class="fw-bold mb-3">Kondang Cargo</h4>
+                        <p class="text-muted small">Solusi logistik untuk pengiriman barang dalam jumlah besar dengan tarif per-kilo yang lebih ekonomis.</p>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <section id="tracking" class="section-pad pt-0">
-            <div class="container">
-                <div class="row g-4">
-                    <div class="col-lg-4 reveal">
-                        <div class="surface-box p-4 h-100">
-                            <h2 class="h4 text-primary-emphasis mb-2">Tracking Publik</h2>
-                            <p class="text-muted small">Masukkan nomor resi dan nomor HP penerima untuk melihat status paket dengan lebih aman.</p>
-
-                            <form method="GET" action="{{ route('landing') }}#tracking" class="mt-3">
-                                <input type="hidden" name="tracking_submit" value="1">
-                                <label class="form-label fw-semibold">Nomor Resi</label>
-                                <input type="text" name="tracking_number" value="{{ $trackingNumber }}" class="form-control mb-3" placeholder="Contoh: SXP-20260412-001" required>
-                                <label class="form-label fw-semibold">No. HP Penerima</label>
-                                <input type="text" name="recipient_phone" value="{{ $trackingRecipientPhone ?? '' }}" class="form-control mb-3" placeholder="Contoh: 081220000111" required>
-                                <button class="btn btn-kondang-primary rounded-pill w-100 fw-semibold" type="submit">Lacak Paket</button>
-                            </form>
-
-                            @if ($trackingError)
-                                <div class="alert alert-danger mt-3 mb-0">{{ $trackingError }}</div>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="col-lg-8 reveal">
-                        <div class="surface-box p-4">
-                            @if ($trackingResult)
-                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                                    <div>
-                                        <div class="small fw-semibold text-uppercase text-primary">Resi {{ $trackingResult->tracking_number }}</div>
-                                        <h3 class="h5 mb-0 text-primary-emphasis">Status {{ $trackingResult->status?->name ?? '-' }}</h3>
-                                    </div>
-                                    <span class="badge text-bg-primary rounded-pill px-3 py-2">{{ strtoupper((string) $trackingResult->service_type) }}</span>
-                                </div>
-
-                                <div class="row g-2 mb-3">
-                                    <div class="col-md-4"><div class="border rounded-3 p-2"><div class="small text-secondary">Penerima</div><strong>{{ $trackingResult->recipient_name }}</strong></div></div>
-                                    <div class="col-md-4"><div class="border rounded-3 p-2"><div class="small text-secondary">No. HP Terverifikasi</div><strong>{{ $maskedRecipientPhone ?? '-' }}</strong></div></div>
-                                    <div class="col-md-4"><div class="border rounded-3 p-2"><div class="small text-secondary">Cabang</div><strong>{{ $trackingResult->branch?->name ?? '-' }}</strong></div></div>
-                                    <div class="col-md-12"><div class="border rounded-3 p-2"><div class="small text-secondary">Kurir</div><strong>{{ $trackingResult->courier?->name ?? '-' }}</strong></div></div>
-                                </div>
-
-                                <div>
-                                    @forelse ($trackingResult->trackings as $event)
-                                        <article class="timeline-item ms-2">
-                                            <div class="fw-bold text-primary-emphasis">{{ $event->status?->name ?? 'Update Status' }}</div>
-                                            <div class="small text-secondary">{{ optional($event->event_at)->format('d M Y H:i') }} | {{ $event->location ?? '-' }}</div>
-                                            @if ($event->notes)
-                                                <div class="small text-muted mt-1">{{ $event->notes }}</div>
-                                            @endif
-                                        </article>
-                                    @empty
-                                        <div class="alert alert-light border mb-0">Belum ada event tracking untuk resi ini.</div>
-                                    @endforelse
-                                </div>
-                            @else
-                                <div class="text-center py-5">
-                                    <div class="h6 text-secondary mb-1">Timeline tracking akan tampil di sini</div>
-                                    <p class="text-muted small mb-0">Masukkan nomor resi dan no. HP penerima pada form di sebelah kiri.</p>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
+    <!-- Why Us -->
+    <section id="tentang" class="py-5 bg-light rounded-5 mx-2 mx-lg-5">
+        <div class="container py-lg-5">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-6">
+                    <img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop" class="img-fluid rounded-5 shadow-lg" alt="Warehouse">
                 </div>
-            </div>
-        </section>
-
-        <section class="section-pad pt-0">
-            <div class="container">
-                <div class="row g-3">
-                    @foreach ($testimonials as $testimonial)
-                        <div class="col-md-6 reveal">
-                            <blockquote class="testimonial-card p-4 mb-0">
-                                <p class="text-muted mb-2">"{{ $testimonial['content'] ?? '-' }}"</p>
-                                <footer class="fw-bold text-primary-emphasis">{{ $testimonial['title'] ?? 'Pelanggan' }}</footer>
-                            </blockquote>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </section>
-
-        <section id="faq" class="section-pad pt-0">
-            <div class="container">
-                <div class="mb-4 reveal">
-                    <h2 class="section-title">Pertanyaan Umum</h2>
-                    <p class="section-subtitle mb-0">FAQ dinamis dari database untuk memudahkan update informasi operasional.</p>
-                </div>
-
-                <div class="accordion reveal" id="faqAccordion">
-                    @foreach ($faqs as $faqIndex => $faq)
-                        <div class="accordion-item faq-item mb-2">
-                            <h3 class="accordion-header" id="faqHeading{{ $faqIndex }}">
-                                <button class="accordion-button {{ $faqIndex > 0 ? 'collapsed' : '' }}" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse{{ $faqIndex }}" aria-expanded="{{ $faqIndex === 0 ? 'true' : 'false' }}" aria-controls="faqCollapse{{ $faqIndex }}">
-                                    {{ $faq['title'] ?? 'Pertanyaan' }}
-                                </button>
-                            </h3>
-                            <div id="faqCollapse{{ $faqIndex }}" class="accordion-collapse collapse {{ $faqIndex === 0 ? 'show' : '' }}" aria-labelledby="faqHeading{{ $faqIndex }}" data-bs-parent="#faqAccordion">
-                                <div class="accordion-body text-muted">
-                                    {{ $faq['content'] ?? '-' }}
-                                </div>
+                <div class="col-lg-6">
+                    <span class="section-tag">Kenapa Kami?</span>
+                    <h2 class="section-title">Keunggulan <span>Kondang Ekspedisi</span></h2>
+                    <div class="d-grid gap-4 mt-5">
+                        <div class="d-flex gap-4">
+                            <div class="icon-circle m-0 bg-white shadow-sm text-primary"><i class="bi bi-lightning-charge-fill"></i></div>
+                            <div>
+                                <h5 class="fw-bold">Pengiriman Super Kilat</h5>
+                                <p class="text-muted small">Optimasi rute distribusi kami memastikan paket Anda tiba lebih cepat dari estimasi standar, bahkan untuk pengiriman antar pulau.</p>
                             </div>
                         </div>
-                    @endforeach
-                </div>
-            </div>
-        </section>
-
-        <section id="kontak" class="section-pad pt-0 pb-5">
-            <div class="container">
-                <div class="surface-box p-4 p-md-5 reveal">
-                    <div class="row g-4 align-items-center">
-                        <div class="col-lg-7">
-                            <h2 class="section-title mb-2">{{ $cta['title'] ?? 'Kirim lebih mudah bersama Kondang Ekspedisi' }}</h2>
-                            <p class="section-subtitle mb-3">{{ $cta['subtitle'] ?? 'Mulai order dan pantau progres paket dalam satu aplikasi.' }}</p>
-                            <div class="d-flex flex-wrap gap-2">
-                                <a href="{{ $cta['cta_url'] ?? '/login' }}" class="btn btn-kondang-primary rounded-pill px-4">{{ $cta['cta_label'] ?? 'Mulai Sekarang' }}</a>
-                                <a href="#tracking" class="btn btn-kondang-outline rounded-pill px-4">Cek Resi</a>
+                        <div class="d-flex gap-4">
+                            <div class="icon-circle m-0 bg-white shadow-sm text-primary"><i class="bi bi-shield-lock-fill"></i></div>
+                            <div>
+                                <h5 class="fw-bold">Garansi Keamanan Barang</h5>
+                                <p class="text-muted small">Kami memberikan perlindungan penuh terhadap risiko kerusakan atau kehilangan. Setiap paket ditangani dengan standar prosedur keamanan tinggi.</p>
                             </div>
                         </div>
-                        <div class="col-lg-5">
-                            <div class="row g-2">
-                                @foreach ($contacts as $contact)
-                                    <div class="col-12">
-                                        <div class="contact-card p-3">
-                                            <div class="small fw-semibold text-uppercase text-primary">{{ $contact['title'] ?? 'Kontak' }}</div>
-                                            <div class="text-secondary-emphasis fw-semibold">{{ $contact['content'] ?? '-' }}</div>
-                                        </div>
-                                    </div>
-                                @endforeach
+                        <div class="d-flex gap-4">
+                            <div class="icon-circle m-0 bg-white shadow-sm text-primary"><i class="bi bi-geo-alt-fill"></i></div>
+                            <div>
+                                <h5 class="fw-bold">Jangkauan Luas & Presisi</h5>
+                                <p class="text-muted small">Titik distribusi yang tersebar hingga pelosok daerah memungkinkan kami menjangkau alamat tersulit dengan akurasi pengantaran yang tinggi.</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
-    </main>
+        </div>
+    </section>
 
-    <footer class="footer-wrap py-3">
-        <div class="container d-flex flex-column flex-md-row justify-content-between gap-2 small">
-            <span>© {{ now()->year }} Kondang Ekspedisi. All rights reserved.</span>
-            <span>Modern Blue White Landing Experience</span>
+    <!-- Footer -->
+    <footer class="footer-main" id="kontak">
+        <div class="container">
+            <div class="row g-5">
+                <div class="col-lg-4">
+                    <h2 class="fw-bold mb-4">KONDANG<span>EKSPEDISI</span></h2>
+                    <p class="text-white-50 mb-5">Menyediakan solusi logistik terpercaya dan transparan untuk menghubungkan setiap sudut Indonesia.</p>
+                    <div class="d-flex">
+                        <a href="#" class="social-btn"><i class="bi bi-instagram"></i></a>
+                        <a href="#" class="social-btn"><i class="bi bi-linkedin"></i></a>
+                        <a href="#" class="social-btn"><i class="bi bi-facebook"></i></a>
+                    </div>
+                </div>
+                <div class="col-lg-2 offset-lg-1">
+                    <h6 class="fw-bold mb-4 text-uppercase">Perusahaan</h6>
+                    <a href="#" class="footer-link">Tentang Kami</a>
+                    <a href="#" class="footer-link">Layanan</a>
+                    <a href="#" class="footer-link">Karir</a>
+                    <a href="#" class="footer-link">Partner</a>
+                </div>
+                <div class="col-lg-2">
+                    <h6 class="fw-bold mb-4 text-uppercase">Bantuan</h6>
+                    <a href="#pnl-track" class="footer-link">Lacak Resi</a>
+                    <a href="#" class="footer-link">FAQ</a>
+                    <a href="#" class="footer-link">Syarat & Ketentuan</a>
+                    <a href="#" class="footer-link">Privasi</a>
+                </div>
+                <div class="col-lg-3">
+                    <h6 class="fw-bold mb-4 text-uppercase">Kontak</h6>
+                    <div class="d-flex gap-3 mb-4">
+                        <i class="bi bi-geo-alt-fill text-primary fs-5"></i>
+                        <span class="text-white-50 small">Jl. Medan Merdeka Selatan No. 10, Jakarta Pusat</span>
+                    </div>
+                    <div class="d-flex gap-3 mb-4">
+                        <i class="bi bi-telephone-fill text-primary fs-5"></i>
+                        <span class="text-white-50 small">(021) 555-1000</span>
+                    </div>
+                    <div class="d-flex gap-3">
+                        <i class="bi bi-envelope-fill text-primary fs-5"></i>
+                        <span class="text-white-50 small">cs@kondang.co.id</span>
+                    </div>
+                </div>
+            </div>
+            <hr class="border-light opacity-10 my-5">
+            <div class="d-flex flex-wrap justify-content-between gap-3 text-white-50 small">
+                <span>© {{ now()->year }} Kondang Ekspedisi. Hak Cipta Dilindungi.</span>
+                <span>Powered by Logistics Technology</span>
+            </div>
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const tooltipTargets = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-            tooltipTargets.forEach((el) => new bootstrap.Tooltip(el));
+        const setupAjax = (formId, url, resultId, renderFn) => {
+            const form = document.getElementById(formId);
+            if(!form) return;
+            
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = e.target.querySelector('button');
+                const resultBox = document.getElementById(resultId);
+                const originalText = btn.innerHTML;
+                
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> PROSES...';
+                resultBox.style.display = 'none';
 
-            const targets = document.querySelectorAll('.reveal');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('show');
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.15 });
-
-            targets.forEach((el, index) => {
-                el.style.transitionDelay = `${Math.min(index * 55, 280)}ms`;
-                observer.observe(el);
+                try {
+                    const params = Object.fromEntries(new FormData(e.target));
+                    const { data } = await axios.get(url, { params });
+                    resultBox.innerHTML = renderFn(data);
+                    resultBox.className = 'dynamic-result animate__animated animate__fadeIn';
+                    resultBox.style.display = 'block';
+                } catch (err) {
+                    resultBox.innerHTML = `<div class="text-danger fw-bold small"><i class="bi bi-info-circle-fill me-2"></i>${err.response?.data?.error || 'Gagal mengambil data. Periksa input Anda.'}</div>`;
+                    resultBox.style.display = 'block';
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
             });
+        };
+
+        setupAjax('formLacak', '/api/track', 'hasilLacak', (d) => `
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <span class="badge bg-primary rounded-pill px-3 py-2">${d.status_name}</span>
+                <small class="fw-bold text-muted">${d.tracking_number}</small>
+            </div>
+            <div class="timeline-line">
+                ${d.trackings.map(t => `
+                    <div class="timeline-point">
+                        <div class="timeline-dot"></div>
+                        <div class="fw-bold small text-secondary">${t.status}</div>
+                        <div style="font-size:0.75rem" class="text-muted">${t.time} • ${t.location}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `);
+
+        setupAjax('formTarif', '/api/quote', 'hasilTarif', (d) => `
+            <div class="text-center">
+                <div class="text-muted small fw-bold mb-1 text-uppercase">ESTIMASI BIAYA PENGIRIMAN</div>
+                <div class="h2 fw-bold text-primary mb-0">Rp ${new Intl.NumberFormat('id-ID').format(d.total)}</div>
+                <div class="mt-2 small text-muted">Layanan: <strong>${d.service_type}</strong> | Berat: <strong>${d.weight} Kg</strong></div>
+            </div>
+        `);
+
+        window.addEventListener('scroll', () => {
+            const nav = document.getElementById('topNav');
+            window.scrollY > 50 ? nav.classList.add('scrolled') : nav.classList.remove('scrolled');
         });
     </script>
 </body>

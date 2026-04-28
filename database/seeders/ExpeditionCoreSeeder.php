@@ -31,47 +31,7 @@ class ExpeditionCoreSeeder extends Seeder
      */
     public function run(): void
     {
-        $branchesByCode = collect([
-            [
-                'code' => 'JKT-HQ',
-                'name' => 'Cabang Pusat Jakarta',
-                'city' => 'Jakarta',
-                'phone' => '021-555-1000',
-                'email' => 'jakarta@kondangekspedisi.test',
-                'address' => 'Jl. Medan Merdeka Selatan No. 10, Jakarta Pusat',
-            ],
-            [
-                'code' => 'SBY-01',
-                'name' => 'Cabang Surabaya',
-                'city' => 'Surabaya',
-                'phone' => '031-555-2000',
-                'email' => 'surabaya@kondangekspedisi.test',
-                'address' => 'Jl. Basuki Rahmat No. 78, Surabaya',
-            ],
-            [
-                'code' => 'BDG-01',
-                'name' => 'Cabang Bandung',
-                'city' => 'Bandung',
-                'phone' => '022-555-3000',
-                'email' => 'bandung@kondangekspedisi.test',
-                'address' => 'Jl. Asia Afrika No. 30, Bandung',
-            ],
-        ])->mapWithKeys(function (array $branch) {
-            $record = Branch::query()->updateOrCreate(
-                ['code' => $branch['code']],
-                [
-                    'name' => $branch['name'],
-                    'city' => $branch['city'],
-                    'phone' => $branch['phone'],
-                    'email' => $branch['email'],
-                    'address' => $branch['address'],
-                    'is_active' => true,
-                ]
-            );
-
-            return [$branch['code'] => $record];
-        });
-
+        // 1. Zones
         $zonesByCode = collect([
             [
                 'code' => 'JABODETABEK',
@@ -105,20 +65,53 @@ class ExpeditionCoreSeeder extends Seeder
             return [$zone['code'] => $record];
         });
 
-        $branchZoneMap = [
-            'JKT-HQ' => 'JABODETABEK',
-            'SBY-01' => 'JAWA-BALI',
-            'BDG-01' => 'JAWA-BALI',
-        ];
+        // 2. Branches
+        $branchesByCode = collect([
+            [
+                'code' => 'JKT-HQ',
+                'name' => 'Cabang Pusat Jakarta',
+                'city' => 'Jakarta',
+                'phone' => '021-555-1000',
+                'email' => 'jakarta@kondangekspedisi.test',
+                'address' => 'Jl. Medan Merdeka Selatan No. 10, Jakarta Pusat',
+                'zone_code' => 'JABODETABEK',
+            ],
+            [
+                'code' => 'SBY-01',
+                'name' => 'Cabang Surabaya',
+                'city' => 'Surabaya',
+                'phone' => '031-555-2000',
+                'email' => 'surabaya@kondangekspedisi.test',
+                'address' => 'Jl. Basuki Rahmat No. 78, Surabaya',
+                'zone_code' => 'JAWA-BALI',
+            ],
+            [
+                'code' => 'BDG-01',
+                'name' => 'Cabang Bandung',
+                'city' => 'Bandung',
+                'phone' => '022-555-3000',
+                'email' => 'bandung@kondangekspedisi.test',
+                'address' => 'Jl. Asia Afrika No. 30, Bandung',
+                'zone_code' => 'JAWA-BALI',
+            ],
+        ])->mapWithKeys(function (array $branch) use ($zonesByCode) {
+            $record = Branch::query()->updateOrCreate(
+                ['code' => $branch['code']],
+                [
+                    'name' => $branch['name'],
+                    'city' => $branch['city'],
+                    'phone' => $branch['phone'],
+                    'email' => $branch['email'],
+                    'address' => $branch['address'],
+                    'zone_id' => $zonesByCode[$branch['zone_code']]->id,
+                    'is_active' => true,
+                ]
+            );
 
-        foreach ($branchesByCode as $code => $branch) {
-            $zoneCode = $branchZoneMap[$code] ?? null;
+            return [$branch['code'] => $record];
+        });
 
-            if ($zoneCode && isset($zonesByCode[$zoneCode])) {
-                $branch->update(['zone_id' => $zonesByCode[$zoneCode]->id]);
-            }
-        }
-
+        // 3. Rate Cards
         $zoneOrder = ['JABODETABEK', 'JAWA-BALI', 'SUMAPA'];
         $zoneRank = [
             'JABODETABEK' => 1,
@@ -164,6 +157,7 @@ class ExpeditionCoreSeeder extends Seeder
             }
         }
 
+        // 4. Shipment Statuses
         $statuses = [
             ['code' => 'pending', 'name' => 'Menunggu Proses', 'sequence' => 1, 'is_final' => false, 'badge_color' => 'amber'],
             ['code' => 'in_transit', 'name' => 'Dalam Perjalanan', 'sequence' => 2, 'is_final' => false, 'badge_color' => 'blue'],
@@ -177,6 +171,7 @@ class ExpeditionCoreSeeder extends Seeder
             ShipmentStatus::query()->updateOrCreate(['code' => $status['code']], $status);
         }
 
+        // 5. Users
         $users = [
             ['name' => 'Admin Sistem', 'email' => 'admin@kondangekspedisi.test', 'role' => 'admin', 'branch_code' => 'JKT-HQ'],
             ['name' => 'Kasir Jakarta', 'email' => 'kasir.jakarta@kondangekspedisi.test', 'role' => 'kasir', 'branch_code' => 'JKT-HQ'],
@@ -197,12 +192,14 @@ class ExpeditionCoreSeeder extends Seeder
                     'branch_id' => $branchesByCode[$user['branch_code']]->id,
                     'is_active' => true,
                     'email_verified_at' => now(),
+                    'permissions' => null,
                 ]
             );
         }
 
         $customerUser = User::query()->where('email', 'pelanggan.demo@kondangekspedisi.test')->first();
 
+        // 6. Customers
         $customerRows = [
             ['name' => 'Pelanggan Demo', 'email' => 'pelanggan.demo@kondangekspedisi.test', 'phone' => '081220000111', 'address' => 'Jl. Melati No. 5, Cempaka Putih, Jakarta Pusat', 'city' => 'Jakarta'],
             ['name' => 'Andi Pratama', 'email' => 'andi.pratama@contoh.id', 'phone' => '081220000112', 'address' => 'Jl. Kencana No. 8, Kebayoran Baru, Jakarta Selatan', 'city' => 'Jakarta'],
@@ -232,6 +229,7 @@ class ExpeditionCoreSeeder extends Seeder
             );
         });
 
+        // 7. Vehicles
         $vehicleRows = [
             ['branch_code' => 'JKT-HQ', 'name' => 'Motor Kurir Jakarta 01', 'plate_number' => 'B 4101 KDX', 'type' => 'motorcycle', 'capacity_kg' => 80],
             ['branch_code' => 'JKT-HQ', 'name' => 'Van Operasional Jakarta 01', 'plate_number' => 'B 9201 KDX', 'type' => 'van', 'capacity_kg' => 1000],
@@ -254,23 +252,24 @@ class ExpeditionCoreSeeder extends Seeder
             );
         }
 
+        // 8. Landing Page Content
         LandingPageContent::query()->delete();
 
         $landingRows = [
-            ['section' => 'hero', 'title' => 'Kondang Ekspedisi', 'subtitle' => 'Kirim paket ke seluruh Indonesia dengan proses cepat dan aman.', 'content' => 'Mulai dari dokumen, produk UMKM, hingga barang bernilai tinggi, semua bisa dipantau real-time.', 'cta_label' => 'Lacak Paket', 'cta_url' => '#tracking', 'sort_order' => 1],
-            ['section' => 'feature', 'title' => 'Penjemputan Terjadwal', 'subtitle' => 'Pickup rutin harian', 'content' => 'Kurir kami siap menjemput paket di rumah, kantor, maupun gudang Anda sesuai jadwal.', 'sort_order' => 1],
-            ['section' => 'feature', 'title' => 'Tracking Transparan', 'subtitle' => 'Timeline status lengkap', 'content' => 'Setiap perpindahan paket tercatat agar pelanggan bisa memantau proses kirim dengan jelas.', 'sort_order' => 2],
-            ['section' => 'feature', 'title' => 'Tarif Kompetitif', 'subtitle' => 'Skema zona dan layanan', 'content' => 'Perhitungan ongkir fleksibel berdasarkan zona tujuan, berat paket, dan jenis layanan.', 'sort_order' => 3],
-            ['section' => 'testimonial', 'title' => 'Toko Sembako Berkah Jaya', 'content' => 'Pengiriman antarkota untuk stok toko jadi lebih teratur. Status paketnya juga jelas.', 'sort_order' => 1],
-            ['section' => 'testimonial', 'title' => 'UMKM Batik Nusantara', 'content' => 'Respon admin cepat, kurir ramah, dan pelanggan kami puas karena paket sampai tepat waktu.', 'sort_order' => 2],
-            ['section' => 'faq', 'title' => 'Bagaimana cara cek nomor resi?', 'content' => 'Masukkan nomor resi pada form tracking publik untuk melihat status terbaru pengiriman.', 'sort_order' => 1],
-            ['section' => 'faq', 'title' => 'Apakah tersedia pembayaran online?', 'content' => 'Ya, pembayaran online tersedia melalui Midtrans Sandbox untuk kebutuhan demo sistem.', 'sort_order' => 2],
-            ['section' => 'cta', 'title' => 'Kelola pengiriman lebih mudah bersama Kondang Ekspedisi', 'subtitle' => 'Satu dashboard untuk order, tracking, dan laporan.', 'cta_label' => 'Masuk Dashboard', 'cta_url' => '/login', 'sort_order' => 1],
-            ['section' => 'contact', 'title' => 'Layanan Pelanggan', 'content' => '0812-9000-7000', 'sort_order' => 1],
-            ['section' => 'contact', 'title' => 'Email Resmi', 'content' => 'halo@kondangekspedisi.test', 'sort_order' => 2],
-            ['section' => 'statistic', 'title' => 'Shipment Terselesaikan', 'content' => '2.500+', 'sort_order' => 1],
-            ['section' => 'statistic', 'title' => 'Kota Terlayani', 'content' => '120+', 'sort_order' => 2],
-            ['section' => 'statistic', 'title' => 'Akurasi Tracking', 'content' => '99.4%', 'sort_order' => 3],
+            ['section' => 'hero', 'title' => 'KONDANG.', 'subtitle' => 'Kirim Paket Tanpa Khawatir.', 'content' => 'Solusi logistik modern dengan jangkauan terluas dan sistem pelacakan real-time yang akurat.', 'cta_label' => 'Lacak Sekarang', 'cta_url' => '#tracking', 'sort_order' => 1],
+            ['section' => 'feature', 'title' => 'Express Delivery', 'subtitle' => 'Cepat & Prioritas', 'content' => 'Pengiriman super cepat untuk dokumen atau paket penting. Estimasi sampai dalam 1 hari kerja.', 'sort_order' => 1],
+            ['section' => 'feature', 'title' => 'Tracking Real-time', 'subtitle' => 'Pantau 24/7', 'content' => 'Sistem GPS terintegrasi yang memungkinkan Anda memantau posisi paket secara langsung.', 'sort_order' => 2],
+            ['section' => 'feature', 'title' => 'Safe & Secure', 'subtitle' => 'Asuransi Terjamin', 'content' => 'Setiap paket kami perlakukan dengan standar keamanan tinggi dan opsi proteksi asuransi.', 'sort_order' => 3],
+            ['section' => 'testimonial', 'title' => 'Budi, Pemilik UMKM', 'content' => 'Sejak pakai Kondang, pengiriman barang ke reseller jadi jauh lebih teratur dan minim komplain.', 'sort_order' => 1],
+            ['section' => 'testimonial', 'title' => 'Siti, Online Seller', 'content' => 'Fitur tracking-nya juara, sangat akurat dan membantu pelanggan saya merasa tenang.', 'sort_order' => 2],
+            ['section' => 'faq', 'title' => 'Berapa lama estimasi pengiriman?', 'content' => 'Reguler 2-4 hari, Express 1-2 hari kerja tergantung kota tujuan.', 'sort_order' => 1],
+            ['section' => 'faq', 'title' => 'Apakah bisa bayar di tempat (COD)?', 'content' => 'Ya, kami mendukung layanan COD untuk seluruh pengiriman domestik.', 'sort_order' => 2],
+            ['section' => 'cta', 'title' => 'Siap kirim paket pertama Anda?', 'subtitle' => 'Daftar sekarang dan nikmati kemudahan mengelola logistik bisnis Anda.', 'cta_label' => 'Mulai Sekarang', 'cta_url' => '/register', 'sort_order' => 1],
+            ['section' => 'contact', 'title' => 'Customer Service', 'content' => '(021) 555-1000', 'sort_order' => 1],
+            ['section' => 'contact', 'title' => 'Email Bantuan', 'content' => 'halo@kondang.co.id', 'sort_order' => 2],
+            ['section' => 'statistic', 'title' => 'Paket/Hari', 'content' => '2.5K+', 'sort_order' => 1],
+            ['section' => 'statistic', 'title' => 'Kota Tujuan', 'content' => '120+', 'sort_order' => 2],
+            ['section' => 'statistic', 'title' => 'Tepat Waktu', 'content' => '99%', 'sort_order' => 3],
         ];
 
         foreach ($landingRows as $row) {
@@ -288,9 +287,9 @@ class ExpeditionCoreSeeder extends Seeder
             ]);
         }
 
+        // 9. Shipment & Payments Simulation
         $branches = Branch::query()->get();
         $couriers = User::query()->where('role', 'courier')->get();
-        $zoneIds = Zone::query()->where('is_active', true)->pluck('id')->all();
         $vehicleIds = Vehicle::query()->pluck('id')->all();
         $statusMap = ShipmentStatus::query()->pluck('id', 'code');
         $kasirId = User::query()->where('role', 'kasir')->value('id');
@@ -299,325 +298,127 @@ class ExpeditionCoreSeeder extends Seeder
             ['name' => 'Toko Kelontong Sinar Rejeki', 'phone' => '081290001001', 'address' => 'Jl. Mangga Dua Raya No. 14, Jakarta'],
             ['name' => 'PT Nusantara Kriya', 'phone' => '081290001002', 'address' => 'Jl. Gatot Subroto No. 88, Jakarta'],
             ['name' => 'Butik Anggrek', 'phone' => '081290001003', 'address' => 'Jl. Cihampelas No. 45, Bandung'],
-            ['name' => 'CV Laut Timur', 'phone' => '081290001004', 'address' => 'Jl. Kenjeran No. 102, Surabaya'],
-            ['name' => 'Percetakan Mitra Usaha', 'phone' => '081290001005', 'address' => 'Jl. Dipati Ukur No. 39, Bandung'],
         ];
 
         $itemCatalog = [
             ['item_name' => 'Dokumen Kontrak', 'description' => 'Berkas dokumen perusahaan', 'weight_kg' => 0.4, 'length_cm' => 32, 'width_cm' => 24, 'height_cm' => 4, 'declared_value' => 150000],
-            ['item_name' => 'Batik Tulis', 'description' => 'Produk UMKM batik premium', 'weight_kg' => 1.2, 'length_cm' => 38, 'width_cm' => 30, 'height_cm' => 10, 'declared_value' => 450000],
             ['item_name' => 'Suku Cadang Motor', 'description' => 'Komponen otomotif', 'weight_kg' => 2.8, 'length_cm' => 28, 'width_cm' => 22, 'height_cm' => 16, 'declared_value' => 700000],
             ['item_name' => 'Peralatan Dapur', 'description' => 'Paket perlengkapan dapur', 'weight_kg' => 3.2, 'length_cm' => 42, 'width_cm' => 32, 'height_cm' => 24, 'declared_value' => 550000],
-            ['item_name' => 'Buku Pelajaran', 'description' => 'Paket buku sekolah', 'weight_kg' => 2.1, 'length_cm' => 30, 'width_cm' => 24, 'height_cm' => 14, 'declared_value' => 280000],
-            ['item_name' => 'Kosmetik Lokal', 'description' => 'Produk kecantikan UMKM', 'weight_kg' => 1.0, 'length_cm' => 24, 'width_cm' => 18, 'height_cm' => 12, 'declared_value' => 320000],
         ];
 
-        $trackingNotes = [
-            'pending' => 'Paket telah diterima di loket dan menunggu proses sortir.',
-            'in_transit' => 'Paket sedang dalam perjalanan menuju kota tujuan.',
-            'out_for_delivery' => 'Paket sedang dibawa kurir untuk diantar ke alamat penerima.',
-            'delivered' => 'Paket telah diterima oleh penerima dalam kondisi baik.',
-            'cancelled' => 'Pengiriman dibatalkan sesuai permintaan pengirim.',
-            'returned' => 'Paket dikembalikan ke pengirim karena kendala pengantaran.',
-        ];
-
-        $statusDistribution = array_merge(
-            array_fill(0, 5, 'delivered'),
-            array_fill(0, 8, 'in_transit'),
-            array_fill(0, 4, 'pending'),
-            array_fill(0, 2, 'cancelled'),
-            ['returned']
-        );
+        $statusDistribution = ['delivered', 'in_transit', 'pending', 'cancelled', 'delivered'];
 
         foreach ($statusDistribution as $index => $statusCode) {
             $branch = $branches->random();
             $customer = $customers->random();
             $courier = $couriers->where('branch_id', $branch->id)->first() ?? $couriers->random();
-            $zoneId = $zoneIds[array_rand($zoneIds)];
+            $destBranch = $branches->where('id', '!=', $branch->id)->random();
             $vehicleId = $vehicleIds[array_rand($vehicleIds)];
             $sender = $senderProfiles[array_rand($senderProfiles)];
-            $weight = (float) rand(5, 80) / 10;
-            $baseAmount = rand(25000, 180000);
+            $weight = (float) rand(5, 50) / 10;
+            $baseAmount = rand(30000, 150000);
             $tracking = sprintf('KND-%s-%03d', now()->format('Ymd'), $index + 1);
 
-            $shipment = Shipment::query()->updateOrCreate(
-                ['tracking_number' => $tracking],
-                [
-                    'customer_id' => $customer->id,
-                    'branch_id' => $branch->id,
-                    'courier_id' => $courier?->id,
-                    'vehicle_id' => $vehicleId,
-                    'zone_id' => $zoneId,
-                    'status_id' => $statusMap[$statusCode],
-                    'sender_name' => $sender['name'],
-                    'sender_phone' => $sender['phone'],
-                    'sender_address' => $sender['address'],
-                    'recipient_name' => $customer->name,
-                    'recipient_phone' => $customer->phone,
-                    'recipient_address' => $customer->address,
-                    'service_type' => ['regular', 'express', 'same_day', 'economy'][array_rand(['regular', 'express', 'same_day', 'economy'])],
-                    'total_weight_kg' => $weight,
-                    'total_volume' => (float) rand(15, 140),
-                    'subtotal_amount' => $baseAmount,
-                    'insurance_amount' => 3000,
-                    'admin_fee' => 2500,
-                    'total_amount' => $baseAmount + 5500,
-                    'is_cod' => false,
-                    'cod_amount' => 0,
-                    'payment_status' => in_array($statusCode, ['delivered', 'in_transit'], true) ? 'paid' : 'pending',
-                    'current_status_at' => now()->subHours(rand(1, 72)),
-                    'estimated_delivery_at' => now()->addDays(rand(1, 5)),
-                    'delivered_at' => $statusCode === 'delivered' ? now()->subHours(rand(1, 24)) : null,
-                    'notes' => 'Data pengiriman contoh untuk simulasi operasional Indonesia.',
-                ]
-            );
+            $shipment = Shipment::query()->create([
+                'tracking_number' => $tracking,
+                'customer_id' => $customer->id,
+                'branch_id' => $branch->id,
+                'destination_branch_id' => $destBranch->id,
+                'courier_id' => $courier?->id,
+                'vehicle_id' => $vehicleId,
+                'zone_id' => $destBranch->zone_id,
+                'status_id' => $statusMap[$statusCode],
+                'sender_name' => $sender['name'],
+                'sender_phone' => $sender['phone'],
+                'sender_address' => $sender['address'],
+                'recipient_name' => $customer->name,
+                'recipient_phone' => $customer->phone,
+                'recipient_address' => $customer->address,
+                'service_type' => 'regular',
+                'total_weight_kg' => $weight,
+                'total_volume' => (float) rand(10, 100),
+                'subtotal_amount' => $baseAmount,
+                'insurance_amount' => 3000,
+                'admin_fee' => 2500,
+                'total_amount' => $baseAmount + 5500,
+                'is_cod' => false,
+                'cod_amount' => 0,
+                'payment_status' => $statusCode === 'pending' ? 'pending' : 'paid',
+                'current_status_at' => now(),
+                'estimated_delivery_at' => now()->addDays(3),
+                'delivered_at' => $statusCode === 'delivered' ? now() : null,
+                'notes' => 'Generated by seeder',
+                'processing_status' => 'ok',
+                'pricing_mode' => 'auto',
+            ]);
 
-            ShipmentItem::query()->where('shipment_id', $shipment->id)->delete();
-            $itemCount = rand(1, 2);
-            for ($itemIndex = 0; $itemIndex < $itemCount; $itemIndex++) {
-                $item = $itemCatalog[array_rand($itemCatalog)];
-                ShipmentItem::query()->create([
-                    'shipment_id' => $shipment->id,
-                    'item_name' => $item['item_name'],
-                    'quantity' => rand(1, 3),
-                    'weight_kg' => $item['weight_kg'],
-                    'length_cm' => $item['length_cm'],
-                    'width_cm' => $item['width_cm'],
-                    'height_cm' => $item['height_cm'],
-                    'declared_value' => $item['declared_value'],
-                    'description' => $item['description'],
-                ]);
-            }
+            $item = $itemCatalog[array_rand($itemCatalog)];
+            ShipmentItem::query()->create([
+                'shipment_id' => $shipment->id,
+                'item_name' => $item['item_name'],
+                'quantity' => 1,
+                'weight_kg' => $item['weight_kg'],
+                'length_cm' => $item['length_cm'],
+                'width_cm' => $item['width_cm'],
+                'height_cm' => $item['height_cm'],
+                'declared_value' => $item['declared_value'],
+                'description' => $item['description'],
+            ]);
 
-            $paymentStatus = match ($statusCode) {
-                'delivered', 'in_transit' => 'settlement',
-                'cancelled' => 'cancel',
-                'returned' => 'refund',
-                default => 'pending',
-            };
+            Payment::query()->create([
+                'shipment_id' => $shipment->id,
+                'customer_id' => $customer->id,
+                'processed_by' => $kasirId,
+                'method' => 'midtrans',
+                'status' => $statusCode === 'pending' ? 'pending' : 'settlement',
+                'amount' => $shipment->total_amount,
+                'midtrans_order_id' => 'ORDER-'.$tracking,
+                'midtrans_transaction_id' => (string) Str::uuid(),
+                'payment_type' => 'bank_transfer',
+                'bank_name' => 'bca',
+                'va_number' => (string) rand(1000000000, 9999999999),
+                'transaction_time' => now(),
+                'paid_at' => $statusCode === 'pending' ? null : now(),
+            ]);
 
-            Payment::query()->updateOrCreate(
-                ['midtrans_order_id' => 'ORDER-'.$tracking],
-                [
-                    'shipment_id' => $shipment->id,
-                    'customer_id' => $customer->id,
-                    'processed_by' => $kasirId,
-                    'method' => 'midtrans',
-                    'status' => $paymentStatus,
-                    'amount' => $shipment->total_amount,
-                    'midtrans_transaction_id' => (string) Str::uuid(),
-                    'snap_token' => Str::random(32),
-                    'snap_redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.Str::random(20),
-                    'payment_type' => 'bank_transfer',
-                    'bank_name' => 'bca',
-                    'va_number' => (string) rand(1000000000, 9999999999),
-                    'fraud_status' => 'accept',
-                    'signature_key' => hash('sha256', $tracking),
-                    'transaction_time' => now()->subHours(rand(1, 96)),
-                    'paid_at' => $paymentStatus === 'settlement' ? now()->subHours(rand(1, 48)) : null,
-                    'gateway_payload' => ['sumber' => 'seeder', 'status' => $paymentStatus],
-                    'notes' => 'Pembayaran contoh untuk kebutuhan demo aplikasi.',
-                ]
-            );
-
-            ShipmentTracking::query()->where('shipment_id', $shipment->id)->delete();
-
-            $trackingSteps = match ($statusCode) {
-                'pending' => ['pending'],
-                'in_transit' => ['pending', 'in_transit'],
-                'delivered' => ['pending', 'in_transit', 'out_for_delivery', 'delivered'],
-                'cancelled' => ['pending', 'cancelled'],
-                'returned' => ['pending', 'in_transit', 'returned'],
-                default => ['pending'],
-            };
-
-            foreach ($trackingSteps as $stepIndex => $stepCode) {
-                ShipmentTracking::query()->create([
-                    'shipment_id' => $shipment->id,
-                    'status_id' => $statusMap[$stepCode],
-                    'created_by' => $courier?->id,
-                    'location' => $stepCode === 'delivered' ? $customer->city : $branch->city,
-                    'notes' => $trackingNotes[$stepCode],
-                    'event_at' => now()->subHours((count($trackingSteps) - $stepIndex) * 4),
-                ]);
-            }
-        }
-
-        $riskUser = User::query()->where('email', 'admin@kondangekspedisi.test')->first();
-        if ($riskUser) {
-            for ($i = 0; $i < 4; $i++) {
-                AuditLog::query()->create([
-                    'action' => 'auth.login_failed',
-                    'subject_type' => User::class,
-                    'subject_id' => $riskUser->id,
-                    'actor_id' => null,
-                    'before_state' => null,
-                    'after_state' => [
-                        'ip' => '127.0.0.1',
-                        'source' => 'seeder',
-                    ],
-                    'notes' => 'Seeded login failure sample.',
-                    'created_at' => now()->subHours(rand(1, 18)),
-                    'updated_at' => now()->subHours(rand(1, 18)),
-                ]);
-            }
-        }
-
-        for ($i = 0; $i < 3; $i++) {
-            AuditLog::query()->create([
-                'action' => 'payment.midtrans_callback_failed',
-                'subject_type' => Payment::class,
-                'subject_id' => 0,
-                'actor_id' => null,
-                'before_state' => null,
-                'after_state' => [
-                    'payload' => ['order_id' => 'SEEDER-FAIL-'.$i],
-                ],
-                'notes' => 'Simulasi callback Midtrans gagal dari seeder.',
-                'created_at' => now()->subHours(rand(1, 20)),
-                'updated_at' => now()->subHours(rand(1, 20)),
+            ShipmentTracking::query()->create([
+                'shipment_id' => $shipment->id,
+                'status_id' => $statusMap['pending'],
+                'created_by' => $courier?->id,
+                'location' => $branch->city,
+                'notes' => 'Shipment created',
+                'event_at' => now()->subHours(2),
             ]);
         }
 
-        // Feature 6: Master Data Governance - Rate Card Approvals
-        $rateCards = RateCard::query()->limit(3)->get();
-        $adminUser = User::query()->where('email', 'admin@kondangekspedisi.test')->first();
+        // 10. Admin Governance & Reliability Simulation
+        $adminUser = User::query()->where('role', 'admin')->first();
         if ($adminUser) {
-            foreach ($rateCards as $rateCard) {
-                RateCardApproval::query()->create([
-                    'rate_card_id' => $rateCard->id,
-                    'requested_by' => $adminUser->id,
-                    'approved_by' => null,
-                    'status' => 'pending',
-                    'changes' => [
-                        'base_price' => ['old' => $rateCard->base_price, 'new' => $rateCard->base_price * 1.1],
-                        'per_kg_price' => ['old' => $rateCard->per_kg_price, 'new' => $rateCard->per_kg_price * 1.1],
-                    ],
-                    'reason' => 'Penyesuaian harga sesuai inflasi Q1 2026.',
-                ]);
-            }
-        }
+            // Integration Health
+            IntegrationStatus::query()->updateOrCreate(
+                ['service_name' => 'midtrans'],
+                ['status' => 'healthy', 'success_count' => 500, 'failure_count' => 2, 'last_success_at' => now()]
+            );
 
-        // Feature 8: Service Reliability - Integration Statuses
-        IntegrationStatus::query()->updateOrCreate(
-            ['service_name' => 'midtrans'],
-            [
-                'status' => 'healthy',
-                'success_count' => 256,
-                'failure_count' => 4,
-                'last_success_at' => now()->subMinutes(5),
-                'last_failure_at' => now()->subHours(3),
-                'metadata' => ['version' => '2.0', 'endpoint' => 'https://api.sandbox.midtrans.com'],
-            ]
-        );
-
-        IntegrationStatus::query()->updateOrCreate(
-            ['service_name' => 'email'],
-            [
-                'status' => 'healthy',
-                'success_count' => 142,
-                'failure_count' => 1,
-                'last_success_at' => now()->subMinutes(10),
-                'last_failure_at' => now()->subDays(2),
-                'metadata' => ['provider' => 'mailtrap', 'queue' => 'redis'],
-            ]
-        );
-
-        IntegrationStatus::query()->updateOrCreate(
-            ['service_name' => 'backup'],
-            [
-                'status' => 'healthy',
-                'success_count' => 30,
-                'failure_count' => 0,
-                'last_success_at' => now()->subHours(2),
-                'last_failure_at' => null,
-                'metadata' => ['storage' => 's3', 'frequency' => 'daily'],
-            ]
-        );
-
-        // Feature 8: Error Logs
-        $errorMessages = [
-            'Payment gateway timeout',
-            'Database connection timeout',
-            'File upload size exceeds limit',
-            'Invalid payment signature',
-            'Email delivery failed',
-        ];
-
-        foreach ($errorMessages as $idx => $message) {
-            ErrorLog::query()->create([
-                'error_type' => 'exception',
-                'module' => ['payment', 'shipment', 'user', 'report'][rand(0, 3)],
-                'message' => $message,
-                'stack_trace' => 'Sample stack trace from seeder',
-                'severity' => ['low', 'medium', 'high', 'critical'][rand(0, 3)],
-                'created_at' => now()->subHours(rand(1, 23)),
-            ]);
-        }
-
-        // Feature 9: Admin Tasks (Action Queue)
-        if ($adminUser) {
+            // Admin Tasks
             AdminTask::query()->create([
                 'task_type' => 'approve_rate_card',
-                'title' => 'Approve Rate Card Update - Zone JABODETABEK',
-                'description' => 'Perubahan tarif regular service untuk zona Jabodetabek.',
+                'title' => 'Review Penyesuaian Tarif',
+                'description' => 'Permintaan update tarif untuk rute Jakarta-Surabaya.',
                 'assigned_to' => $adminUser->id,
                 'created_by' => $adminUser->id,
                 'status' => 'pending',
                 'priority' => 'high',
-                'action_data' => ['rate_card_id' => 1, 'approval_id' => 1],
+                'action_data' => ['rate_card_id' => 1],
             ]);
 
-            AdminTask::query()->create([
-                'task_type' => 'reassign_shipment',
-                'title' => 'Reassign Stuck Shipment KND-20260412-001',
-                'description' => 'Reasign pengiriman terhambat ke kurir alternatif.',
-                'assigned_to' => $adminUser->id,
-                'created_by' => $adminUser->id,
-                'status' => 'pending',
-                'priority' => 'high',
-                'action_data' => ['shipment_id' => 1],
-            ]);
-
-            AdminTask::query()->create([
-                'task_type' => 'follow_up_payment',
-                'title' => 'Follow-up Pembayaran Pending > 24 jam',
-                'description' => 'Hubungi pelanggan untuk konfirmasi pembayaran.',
-                'assigned_to' => null,
-                'created_by' => $adminUser->id,
-                'status' => 'pending',
-                'priority' => 'medium',
-                'action_data' => ['payment_count' => 5],
+            // Error Logs
+            ErrorLog::query()->create([
+                'error_type' => 'exception',
+                'module' => 'payment',
+                'message' => 'Midtrans connection timeout',
+                'severity' => 'high',
             ]);
         }
-
-        // Feature 10: Reports
-        Report::query()->create([
-            'report_type' => 'kpi_snapshot',
-            'title' => 'KPI Snapshot - 2026-04-11',
-            'frequency' => 'daily',
-            'recipients' => ['admin@kondangekspedisi.test', 'manager@kondangekspedisi.test'],
-            'filters' => ['date' => '2026-04-11'],
-            'format' => 'pdf',
-            'file_path' => 'reports/kpi_snapshot_20260411.pdf',
-            'status' => 'completed',
-            'record_count' => 150,
-            'generated_at' => now()->subDay(),
-            'generated_by' => $adminUser?->id,
-        ]);
-
-        Report::query()->create([
-            'report_type' => 'daily_export',
-            'title' => 'Daily Shipment Export - 2026-04-12',
-            'frequency' => 'daily',
-            'recipients' => ['operations@kondangekspedisi.test'],
-            'filters' => ['date' => '2026-04-12'],
-            'format' => 'csv',
-            'file_path' => 'reports/shipments_20260412.csv',
-            'status' => 'completed',
-            'record_count' => 42,
-            'generated_at' => now(),
-            'generated_by' => $adminUser?->id,
-        ]);
     }
 }

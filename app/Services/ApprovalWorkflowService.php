@@ -246,11 +246,12 @@ class ApprovalWorkflowService
             ]);
 
             $result = match ($task->task_type) {
-                'shipment_final_status_approval' => $this->applyShipmentFinalStatusApproval($task, $approver, $note),
+                'shipment_final_status_approval', 'reassign_shipment' => $this->applyShipmentFinalStatusApproval($task, $approver, $note),
                 'shipment_reassign_approval' => $this->applyShipmentReassignApproval($task, $approver, $note),
                 'payment_manual_status_approval' => $this->applyPaymentManualStatusApproval($task, $approver, $note),
+                'approve_rate_card' => $this->applyRateCardTaskApproval($task, $approver, $note),
                 default => throw ValidationException::withMessages([
-                    'task_type' => 'Task approval sensitif tidak dikenali.',
+                    'task_type' => 'Task approval sensitif tidak dikenali ('.$task->task_type.').',
                 ]),
             };
 
@@ -348,6 +349,42 @@ class ApprovalWorkflowService
             ['status' => $requestedStatus],
             trim((string) ($task->action_data['reason'] ?? 'Approval perubahan payment manual').($note ? ' '.$note : ''))
         );
+    }
+
+    private function applyRateCardTaskApproval(AdminTask $task, User $approver, ?string $note): RateCard
+    {
+        $rateCardApprovalId = (int) ($task->action_data['approval_id'] ?? 0);
+        
+        if ($rateCardApprovalId <= 0) {
+            // Fallback for tasks where approval_id might be missing or stored differently
+            $rateCardId = (int) ($task->action_data['rate_card_id'] ?? 0);
+            $rateCard = RateCard::query()->findOrFail($rateCardId);
+            
+            // Create a pseudo-approval or just apply if it's a direct task
+            $approvedValues = [
+                'base_price' => (float) ($task->action_data['new_base_price'] ?? $rateCard->base_price),
+                'per_kg_price' => (float) ($task->action_data['new_per_kg_price'] ?? $rateCard->per_kg_price),
+            ];
+            
+            $before = $rateCard->only(array_keys($approvedValues));
+            $rateCard->forceFill($approvedValues)->save();
+            
+            $this->auditLogService->record(
+                'rate_card.approved_change_via_task',
+                $rateCard,
+                $approver,
+                $before,
+                $rateCard->fresh()->only(array_keys($approvedValues)),
+                $note ?: 'Perubahan rate card disetujui melalui task queue.',
+                ['source' => 'system_task']
+            );
+            
+            return $rateCard;
+        }
+
+        $rateCardApproval = RateCardApproval::query()->findOrFail($rateCardApprovalId);
+
+        return $this->approveRateCardApproval($rateCardApproval, $approver, $note);
     }
 
     private function upsertAdminTask(string $taskType, string $title, User $actor, string $priority, array $actionData, string $notes): AdminTask
