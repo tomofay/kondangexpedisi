@@ -10,9 +10,18 @@ use Illuminate\Validation\Rule;
 
 class UserManagementController extends Controller
 {
+    /**
+     * Display a listing of users.
+     * Admin: semua user. Manager: user di cabangnya (read-only).
+     */
     public function index(Request $request): JsonResponse
     {
         $actor = $request->user();
+
+        if (! in_array($actor?->role, ['admin', 'manager'], true)) {
+            abort(403, 'Anda tidak memiliki akses untuk mengelola user.');
+        }
+
         $perPage = min(max((int) $request->integer('per_page', 15), 5), 100);
         $sortBy = in_array($request->input('sort_by'), ['id', 'name', 'email', 'role', 'created_at'], true)
             ? $request->input('sort_by')
@@ -21,14 +30,9 @@ class UserManagementController extends Controller
 
         $query = User::query()->with('branch');
 
-        if ($actor?->role === 'kasir') {
-            $managerBranch = Branch::query()->find($actor->branch_id);
-
-            if (! $managerBranch || ! $managerBranch->is_active) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->where('branch_id', $managerBranch->id);
-            }
+        // Manager hanya bisa lihat user di cabangnya
+        if ($actor->role === 'manager') {
+            $query->where('branch_id', $actor->branch_id);
         }
 
         if ($search = trim((string) $request->input('search', ''))) {
@@ -56,8 +60,17 @@ class UserManagementController extends Controller
         return response()->json($users);
     }
 
+    /**
+     * Store a newly created user. Admin only.
+     */
     public function store(Request $request): JsonResponse
     {
+        $actor = $request->user();
+
+        if ($actor?->role !== 'admin') {
+            abort(403, 'Hanya admin yang dapat membuat user baru.');
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->whereNull('deleted_at')],
@@ -82,13 +95,36 @@ class UserManagementController extends Controller
         ], 201);
     }
 
-    public function show(User $user): JsonResponse
+    /**
+     * Display user detail.
+     */
+    public function show(Request $request, User $user): JsonResponse
     {
+        $actor = $request->user();
+
+        if (! in_array($actor?->role, ['admin', 'manager'], true)) {
+            abort(403);
+        }
+
+        // Manager hanya bisa lihat user di cabangnya
+        if ($actor->role === 'manager' && (int) $user->branch_id !== (int) $actor->branch_id) {
+            abort(403, 'Anda hanya bisa melihat user di cabang Anda.');
+        }
+
         return response()->json($user->load('branch'));
     }
 
+    /**
+     * Update user. Admin only.
+     */
     public function update(Request $request, User $user): JsonResponse
     {
+        $actor = $request->user();
+
+        if ($actor?->role !== 'admin') {
+            abort(403, 'Hanya admin yang dapat mengubah data user.');
+        }
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->whereNull('deleted_at')->ignore($user->id)],
@@ -117,9 +153,18 @@ class UserManagementController extends Controller
         ]);
     }
 
+    /**
+     * Delete user. Admin only.
+     */
     public function destroy(Request $request, User $user): JsonResponse
     {
-        if ((int) $request->user()?->id === (int) $user->id) {
+        $actor = $request->user();
+
+        if ($actor?->role !== 'admin') {
+            abort(403, 'Hanya admin yang dapat menghapus user.');
+        }
+
+        if ((int) $actor->id === (int) $user->id) {
             return response()->json(['message' => 'Tidak bisa menghapus akun sendiri.'], 422);
         }
 

@@ -7,7 +7,6 @@ use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
 use App\Models\User;
-use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -108,11 +107,12 @@ class ShipmentStatusWorkflowTest extends TestCase
 
     public function test_regular_shipment_update_cannot_change_status_id(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = Branch::factory()->create();
+        $manager = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $statuses = $this->createWorkflowStatuses();
-        $shipment = $this->createShipmentWithStatus($statuses['pending']);
+        $shipment = $this->createShipmentWithStatus($statuses['pending'], $branch);
 
-        $response = $this->actingAs($admin)->putJson(route('shipments.update', $shipment), [
+        $response = $this->actingAs($manager)->putJson(route('shipments.update', $shipment), [
             'status_id' => $statuses['in_transit']->id,
             'notes' => 'Coba ubah status lewat update biasa',
         ]);
@@ -141,17 +141,13 @@ class ShipmentStatusWorkflowTest extends TestCase
         return $statuses;
     }
 
-    private function createShipmentWithStatus(ShipmentStatus $status): Shipment
+    private function createShipmentWithStatus(ShipmentStatus $status, ?Branch $branch = null): Shipment
     {
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create([
-            'zone_id' => $zone->id,
-        ]);
+        $branch = $branch ?: Branch::factory()->create();
 
         return Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-'.Str::upper(Str::random(8)),
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => $status->id,
             'sender_name' => 'Pengirim Test',
             'sender_phone' => '081200000001',
@@ -166,8 +162,6 @@ class ShipmentStatusWorkflowTest extends TestCase
             'insurance_amount' => 0,
             'admin_fee' => 2500,
             'total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'current_status_at' => now(),
             'estimated_delivery_at' => now()->addDay(),

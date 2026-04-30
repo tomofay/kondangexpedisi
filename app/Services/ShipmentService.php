@@ -11,17 +11,13 @@ use App\Models\RateCard;
 use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
-use App\Models\Zone;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ShipmentService
 {
-    private ?bool $hasDestinationBranchColumn = null;
-
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly NotificationService $notificationService
@@ -34,9 +30,13 @@ class ShipmentService
         $branchCode = Branch::query()->whereKey($branchId)->value('code') ?: 'GEN';
         $prefix = config('expedition.tracking_number.prefix', 'SXP');
         $dateFormat = config('expedition.tracking_number.date_format', 'Ymd');
-        $random = Str::upper(Str::random(5));
+        
+        do {
+            $random = Str::upper(Str::random(8));
+            $trackingNumber = sprintf('%s-%s-%s-%s', $prefix, $branchCode, now()->format($dateFormat), $random);
+        } while (Shipment::query()->where('tracking_number', $trackingNumber)->exists());
 
-        return sprintf('%s-%s-%s-%s', $prefix, $branchCode, now()->format($dateFormat), $random);
+        return $trackingNumber;
     }
 
     public function allowedShipmentStatusCodes(): array
@@ -112,34 +112,23 @@ class ShipmentService
 
     public function calculateTotalAmount(array $data): array
     {
-        $destinationZone = Zone::query()->find($data['zone_id'] ?? null);
-        $originZoneId = $data['origin_zone_id'] ?? null;
+        $destinationBranchId = $data['destination_branch_id'] ?? null;
+        $originBranchId = $data['branch_id'] ?? null;
 
-        if (! $originZoneId && ! empty($data['branch_id'])) {
-            $originZoneId = Branch::query()->whereKey($data['branch_id'])->value('zone_id');
-        }
-
-        $originZone = $originZoneId ? Zone::query()->find($originZoneId) : null;
         $weight = (float) ($data['total_weight_kg'] ?? 0);
         $serviceType = $data['service_type'] ?? 'regular';
         $insuranceAmount = (float) ($data['insurance_amount'] ?? 0);
         $adminFee = (float) ($data['admin_fee'] ?? 2500);
 
-        if (! $destinationZone) {
+        if (! $destinationBranchId || ! $originBranchId) {
             throw ValidationException::withMessages([
-                'zone_id' => 'Zona tujuan wajib dipilih agar biaya kirim bisa dihitung.',
-            ]);
-        }
-
-        if (! $originZone) {
-            throw ValidationException::withMessages([
-                'branch_id' => 'Cabang asal harus memiliki zona aktif agar biaya kirim bisa dihitung.',
+                'branch_id' => 'Cabang asal dan tujuan wajib dipilih agar biaya kirim bisa dihitung.',
             ]);
         }
 
         $rateCardQuery = RateCard::query()
-            ->where('origin_zone_id', $originZone->id)
-            ->where('destination_zone_id', $destinationZone->id)
+            ->where('origin_branch_id', $originBranchId)
+            ->where('destination_branch_id', $destinationBranchId)
             ->where('service_type', $serviceType)
             ->where('is_active', true)
             ->where('min_weight_kg', '<=', $weight)
@@ -152,8 +141,8 @@ class ShipmentService
 
         if (! $rateCard) {
             $rateCard = RateCard::query()
-                ->where('origin_zone_id', $originZone->id)
-                ->where('destination_zone_id', $destinationZone->id)
+                ->where('origin_branch_id', $originBranchId)
+                ->where('destination_branch_id', $destinationBranchId)
                 ->where('service_type', $serviceType)
                 ->where('is_active', true)
                 ->orderBy('min_weight_kg')
@@ -162,8 +151,8 @@ class ShipmentService
 
         if (! $rateCard) {
             $rateCard = RateCard::query()
-                ->where('origin_zone_id', $originZone->id)
-                ->where('destination_zone_id', $destinationZone->id)
+                ->where('origin_branch_id', $originBranchId)
+                ->where('destination_branch_id', $destinationBranchId)
                 ->where('is_active', true)
                 ->orderBy('service_type')
                 ->orderBy('min_weight_kg')
@@ -175,16 +164,14 @@ class ShipmentService
 
             if (! $fallbackEnabled) {
                 throw ValidationException::withMessages([
-                    'zone_id' => 'Rate card untuk rute zona asal/tujuan dan service ini belum tersedia.',
+                    'branch_id' => 'Rate card untuk rute cabang asal/tujuan dan service ini belum tersedia.',
                 ]);
             }
 
             $fallbackBasePrice = (float) config('expedition.pricing.fallback.base_price', 15000);
             $fallbackPerKgPrice = (float) config('expedition.pricing.fallback.per_kg_price', 7000);
-            $applyDestinationMultiplier = (bool) config('expedition.pricing.fallback.apply_destination_multiplier', true);
 
-            $zoneMultiplier = $applyDestinationMultiplier ? (float) $destinationZone->multiplier : 1;
-            $baseAmount = ($fallbackBasePrice * $zoneMultiplier) + ($fallbackPerKgPrice * max($weight, 1));
+            $baseAmount = $fallbackBasePrice + ($fallbackPerKgPrice * max($weight, 1));
             $subtotalAmount = (int) round($baseAmount);
             $totalAmount = $subtotalAmount + (int) round($insuranceAmount) + (int) round($adminFee);
 
@@ -200,8 +187,7 @@ class ShipmentService
             ];
         }
 
-        $zoneMultiplier = (float) $destinationZone->multiplier;
-        $baseAmount = ((float) $rateCard->base_price * $zoneMultiplier) + ((float) $rateCard->per_kg_price * max($weight, 1));
+        $baseAmount = ((float) $rateCard->base_price) + ((float) $rateCard->per_kg_price * max($weight, 1));
         $subtotalAmount = (int) round($baseAmount);
         $totalAmount = $subtotalAmount + (int) round($insuranceAmount) + (int) round($adminFee);
 
@@ -359,7 +345,6 @@ class ShipmentService
             'branch_id' => $data['branch_id'],
             'courier_id' => $data['courier_id'] ?? null,
             'vehicle_id' => $data['vehicle_id'] ?? null,
-            'zone_id' => $data['zone_id'] ?? null,
             'status_id' => $pendingStatusId,
             'sender_name' => $data['sender_name'],
             'sender_phone' => $data['sender_phone'],
@@ -379,8 +364,6 @@ class ShipmentService
             'auto_admin_fee' => $manualOverride ? null : $amount['admin_fee'],
             'auto_total_amount' => $manualOverride ? null : $amount['total_amount'],
             'corrected_total_amount' => $manualOverride ? $amount['total_amount'] : null,
-            'is_cod' => (bool) ($data['is_cod'] ?? false),
-            'cod_amount' => $data['cod_amount'] ?? 0,
             'payment_status' => 'pending',
             'processing_status' => $requiresPricingApproval
                 ? 'needs_manual_review'
@@ -399,11 +382,8 @@ class ShipmentService
             'estimated_delivery_at' => $data['estimated_delivery_at'] ?? now()->addDays(2),
             'delivered_at' => null,
             'notes' => $data['notes'] ?? null,
+            'destination_branch_id' => $data['destination_branch_id'] ?? null,
         ];
-
-        if ($this->supportsDestinationBranchColumn()) {
-            $payload['destination_branch_id'] = $data['destination_branch_id'] ?? null;
-        }
 
         $shipment = DB::transaction(function () use ($payload, $pendingStatusId, $actor, $data) {
             $shipment = Shipment::query()->create($payload);
@@ -422,7 +402,7 @@ class ShipmentService
                 'shipment_id' => $shipment->id,
                 'customer_id' => $shipment->customer_id,
                 'processed_by' => $actor?->id,
-                'method' => (bool) ($data['is_cod'] ?? false) ? 'cod' : 'midtrans',
+                'method' => $data['payment_method'] ?? 'midtrans',
                 'status' => 'pending',
                 'amount' => $shipment->total_amount,
                 'notes' => 'Payment otomatis dibuat saat shipment dibuat berdasarkan perhitungan rate card.',
@@ -732,16 +712,7 @@ class ShipmentService
         ]);
     }
 
-    private function supportsDestinationBranchColumn(): bool
-    {
-        if ($this->hasDestinationBranchColumn !== null) {
-            return $this->hasDestinationBranchColumn;
-        }
 
-        $this->hasDestinationBranchColumn = Schema::hasColumn('shipments', 'destination_branch_id');
-
-        return $this->hasDestinationBranchColumn;
-    }
 
     public function syncPaymentStatus(Shipment $shipment, string $paymentStatus): Shipment
     {
@@ -787,7 +758,7 @@ class ShipmentService
 
     public function recalculateShipmentTotals(Shipment $shipment): Shipment
     {
-        $shipment->loadMissing('items', 'zone');
+        $shipment->loadMissing('items');
 
         $totalWeight = (float) $shipment->items->sum('weight_kg');
         $totalVolume = (float) $shipment->items->sum(function (ShipmentItem $item) {
@@ -803,9 +774,9 @@ class ShipmentService
             'total_volume' => $totalVolume,
         ])->save();
 
-        if ($shipment->zone_id) {
+        if ($shipment->destination_branch_id) {
             $amount = $this->calculateTotalAmount([
-                'zone_id' => $shipment->zone_id,
+                'destination_branch_id' => $shipment->destination_branch_id,
                 'branch_id' => $shipment->branch_id,
                 'total_weight_kg' => $shipment->total_weight_kg,
                 'service_type' => $shipment->service_type,
@@ -821,6 +792,6 @@ class ShipmentService
             ])->save();
         }
 
-        return $shipment->fresh(['items', 'zone']);
+        return $shipment->fresh(['items']);
     }
 }

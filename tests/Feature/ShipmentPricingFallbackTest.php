@@ -8,7 +8,6 @@ use App\Models\RateCard;
 use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\User;
-use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,16 +17,16 @@ class ShipmentPricingFallbackTest extends TestCase
 
     public function test_shipment_creation_uses_fallback_when_rate_card_is_missing(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $this->createWorkflowStatuses();
 
-        $originZone = Zone::factory()->create(['multiplier' => 1.2]);
-        $destinationZone = Zone::factory()->create(['multiplier' => 1.5]);
-        $branch = Branch::factory()->create(['zone_id' => $originZone->id]);
+        $originBranch = Branch::factory()->create();
+        $destinationBranch = Branch::factory()->create();
 
         $response = $this->actingAs($admin)->postJson(route('shipments.store'), [
             'branch_id' => $branch->id,
-            'zone_id' => $destinationZone->id,
+            'destination_branch_id' => $destinationBranch->id,
             'sender_name' => 'Pengirim Fallback',
             'sender_phone' => '081200000101',
             'sender_address' => 'Jl. Asal No. 1',
@@ -60,17 +59,16 @@ class ShipmentPricingFallbackTest extends TestCase
 
     public function test_user_can_request_pricing_override_with_approval_flow(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $this->createWorkflowStatuses();
 
-        $originZone = Zone::factory()->create(['multiplier' => 1]);
-        $destinationZone = Zone::factory()->create(['multiplier' => 1]);
-        $branch = Branch::factory()->create(['zone_id' => $originZone->id]);
+        $originBranch = Branch::factory()->create();
+        $destinationBranch = Branch::factory()->create();
 
         RateCard::query()->create([
-            'origin_zone_id' => $originZone->id,
-            'destination_zone_id' => $destinationZone->id,
-            'zone_id' => $destinationZone->id,
+            'origin_branch_id' => $originBranch->id,
+            'destination_branch_id' => $destinationBranch->id,
             'service_type' => 'regular',
             'min_weight_kg' => 0,
             'max_weight_kg' => 10,
@@ -83,7 +81,6 @@ class ShipmentPricingFallbackTest extends TestCase
         $shipment = Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-REQ-001',
             'branch_id' => $branch->id,
-            'zone_id' => $destinationZone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000201',
@@ -102,8 +99,6 @@ class ShipmentPricingFallbackTest extends TestCase
             'auto_insurance_amount' => 1000,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 23500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'processing_error' => null,
@@ -139,17 +134,14 @@ class ShipmentPricingFallbackTest extends TestCase
 
     public function test_admin_can_approve_requested_pricing_override(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $adminApprover = User::factory()->state(['role' => 'admin'])->create();
         $this->createWorkflowStatuses();
-
-        $zone = Zone::factory()->create(['multiplier' => 1]);
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
 
         $shipment = Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-APP-001',
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000301',
@@ -168,8 +160,6 @@ class ShipmentPricingFallbackTest extends TestCase
             'auto_insurance_amount' => 1000,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 23500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'needs_manual_review',
             'processing_error' => 'Menunggu approval override tarif manual.',
@@ -227,17 +217,14 @@ class ShipmentPricingFallbackTest extends TestCase
 
     public function test_admin_can_reject_requested_pricing_override(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $adminApprover = User::factory()->state(['role' => 'admin'])->create();
         $this->createWorkflowStatuses();
-
-        $zone = Zone::factory()->create(['multiplier' => 1]);
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
 
         $shipment = Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-REJ-001',
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000401',
@@ -256,8 +243,6 @@ class ShipmentPricingFallbackTest extends TestCase
             'auto_insurance_amount' => 1000,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 23500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'needs_manual_review',
             'processing_error' => 'Menunggu approval override tarif manual.',
@@ -316,16 +301,13 @@ class ShipmentPricingFallbackTest extends TestCase
 
     public function test_admin_can_list_pricing_approval_inbox_with_status_filter(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $this->createWorkflowStatuses();
-
-        $zone = Zone::factory()->create(['multiplier' => 1]);
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
 
         $shipmentPending = Shipment::query()->create([
             'tracking_number' => 'SXP-INBOX-PENDING-001',
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'A',
             'sender_phone' => '0811',
@@ -341,8 +323,6 @@ class ShipmentPricingFallbackTest extends TestCase
             'admin_fee' => 2500,
             'total_amount' => 13500,
             'auto_total_amount' => 13500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'pricing_mode' => 'auto',
             'pricing_approval_status' => 'pending',
@@ -353,7 +333,6 @@ class ShipmentPricingFallbackTest extends TestCase
         $shipmentApproved = Shipment::query()->create([
             'tracking_number' => 'SXP-INBOX-APPROVED-001',
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'C',
             'sender_phone' => '0833',
@@ -370,8 +349,6 @@ class ShipmentPricingFallbackTest extends TestCase
             'total_amount' => 15500,
             'auto_total_amount' => 15500,
             'corrected_total_amount' => 18000,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'pricing_mode' => 'manual',
             'pricing_approval_status' => 'approved',

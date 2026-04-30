@@ -8,7 +8,6 @@ use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
 use App\Models\ShipmentTrackingProof;
 use App\Models\User;
-use App\Models\Zone;
 use App\Services\OperationalIssueService;
 use App\Services\ShipmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,8 +22,7 @@ class NotificationAndProofInvestigationTest extends TestCase
         $this->createWorkflowStatuses();
 
         $admin = User::factory()->state(['role' => 'admin'])->create();
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $shipment = $this->createShipment($branch, null, null, 'pending');
 
@@ -40,7 +38,7 @@ class NotificationAndProofInvestigationTest extends TestCase
             'priority' => 'high',
         ]);
 
-        $response = $this->actingAs($admin)->getJson(route('notifications.admin.index'));
+        $response = $this->actingAs($admin)->getJson(route('admin.notifications.index'));
 
         $response
             ->assertOk()
@@ -56,8 +54,7 @@ class NotificationAndProofInvestigationTest extends TestCase
             'user_id' => $customerUser->id,
         ]);
 
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $shipment = $this->createShipment($branch, null, $customer->id, 'pending');
 
@@ -69,7 +66,7 @@ class NotificationAndProofInvestigationTest extends TestCase
             'priority' => 'high',
         ]);
 
-        $response = $this->withMobileToken($customerUser)->getJson(route('notifications.customer.index'));
+        $response = $this->actingAs($customerUser)->getJson(route('customer.notifications.index'));
 
         $response
             ->assertOk()
@@ -86,8 +83,7 @@ class NotificationAndProofInvestigationTest extends TestCase
             'user_id' => $customerUser->id,
         ]);
 
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $shipment = $this->createShipment($branch, $courier->id, $customer->id, 'pending');
 
@@ -119,8 +115,7 @@ class NotificationAndProofInvestigationTest extends TestCase
         $courierA = User::factory()->state(['role' => 'courier'])->create();
         $courierB = User::factory()->state(['role' => 'courier'])->create();
 
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $shipment = $this->createShipment($branch, $courierA->id, null, 'in_transit');
 
@@ -203,7 +198,6 @@ class NotificationAndProofInvestigationTest extends TestCase
             'customer_id' => $customerId,
             'branch_id' => $branch->id,
             'courier_id' => $courierId,
-            'zone_id' => $branch->zone_id,
             'status_id' => $statusId,
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200002001',
@@ -222,8 +216,6 @@ class NotificationAndProofInvestigationTest extends TestCase
             'auto_insurance_amount' => 1000,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 13500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'pricing_mode' => 'auto',

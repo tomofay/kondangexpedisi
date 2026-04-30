@@ -37,8 +37,6 @@ class CourierShipmentResource extends JsonResource
             'payment' => [
                 'status' => $this->payment_status,
                 'total_amount' => (float) $this->total_amount,
-                'is_cod' => (bool) $this->is_cod,
-                'cod_amount' => (float) $this->cod_amount,
             ],
             'estimated_delivery' => $this->estimated_delivery_at?->toIso8601String(),
             'notes' => $this->notes,

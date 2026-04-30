@@ -12,9 +12,8 @@ class RateCard extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'zone_id',
-        'origin_zone_id',
-        'destination_zone_id',
+        'origin_branch_id',
+        'destination_branch_id',
         'service_type',
         'min_weight_kg',
         'max_weight_kg',
@@ -36,19 +35,13 @@ class RateCard extends Model
         ];
     }
 
-    public function zone(): BelongsTo
+    public function originBranch(): BelongsTo
     {
-        // Legacy alias for destination zone.
-        return $this->destinationZone();
+        return $this->belongsTo(Branch::class, 'origin_branch_id');
     }
 
-    public function originZone(): BelongsTo
+    public function destinationBranch(): BelongsTo
     {
-        return $this->belongsTo(Zone::class, 'origin_zone_id');
-    }
-
-    public function destinationZone(): BelongsTo
-    {
-        return $this->belongsTo(Zone::class, 'destination_zone_id');
+        return $this->belongsTo(Branch::class, 'destination_branch_id');
     }
 }

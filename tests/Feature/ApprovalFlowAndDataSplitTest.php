@@ -10,7 +10,6 @@ use App\Models\RateCardApproval;
 use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\User;
-use App\Models\Zone;
 use App\Services\OperationalIssueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -23,9 +22,8 @@ class ApprovalFlowAndDataSplitTest extends TestCase
     {
         $this->createWorkflowStatuses();
 
-        $admin = User::factory()->state(['role' => 'admin'])->create();
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $customerUser = User::factory()->state(['role' => 'customer'])->create();
         $customer = Customer::factory()->create(['user_id' => $customerUser->id]);
 
@@ -33,7 +31,6 @@ class ApprovalFlowAndDataSplitTest extends TestCase
             'tracking_number' => 'SXP-AUTO-'.strtoupper(fake()->bothify('#####')),
             'customer_id' => $customer->id,
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Auto Sender',
             'sender_phone' => '08120001001',
@@ -52,8 +49,6 @@ class ApprovalFlowAndDataSplitTest extends TestCase
             'auto_insurance_amount' => 0,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'pricing_mode' => 'auto',
@@ -66,7 +61,6 @@ class ApprovalFlowAndDataSplitTest extends TestCase
             'tracking_number' => 'SXP-MAN-'.strtoupper(fake()->bothify('#####')),
             'customer_id' => $customer->id,
             'branch_id' => $branch->id,
-            'zone_id' => $zone->id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Manual Sender',
             'sender_phone' => '08120002001',
@@ -85,8 +79,6 @@ class ApprovalFlowAndDataSplitTest extends TestCase
             'auto_insurance_amount' => 0,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'pricing_mode' => 'manual',
@@ -128,14 +120,12 @@ class ApprovalFlowAndDataSplitTest extends TestCase
 
     public function test_rate_card_update_requires_approval_and_applies_after_approval(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
-        $originZone = Zone::factory()->create();
-        $destinationZone = Zone::factory()->create();
-
+        $originBranch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $originBranch->id])->create();
+        $destinationBranch = Branch::factory()->create();
         $rateCard = RateCard::query()->create([
-            'origin_zone_id' => $originZone->id,
-            'destination_zone_id' => $destinationZone->id,
-            'zone_id' => $destinationZone->id,
+            'origin_branch_id' => $originBranch->id,
+            'destination_branch_id' => $destinationBranch->id,
             'service_type' => 'regular',
             'min_weight_kg' => 1,
             'max_weight_kg' => 10,
@@ -154,7 +144,7 @@ class ApprovalFlowAndDataSplitTest extends TestCase
 
         $response
             ->assertStatus(202)
-            ->assertJsonPath('message', 'Perubahan rate card menunggu approval.');
+            ->assertJsonPath('message', 'Pengajuan perubahan rate card dikirim ke admin untuk disetujui.');
 
         $this->assertDatabaseHas('rate_card_approvals', [
             'rate_card_id' => $rateCard->id,
@@ -168,7 +158,8 @@ class ApprovalFlowAndDataSplitTest extends TestCase
 
         $approval = RateCardApproval::query()->where('rate_card_id', $rateCard->id)->latest('id')->firstOrFail();
 
-        $approveResponse = $this->actingAs($admin)->postJson(route('approvals.rate-cards.approve', $approval), [
+        $centerAdmin = User::factory()->state(['role' => 'admin'])->create();
+        $approveResponse = $this->actingAs($centerAdmin)->postJson(route('approvals.rate-cards.approve', $approval), [
             'note' => 'Disetujui setelah review.',
         ]);
 
@@ -191,10 +182,9 @@ class ApprovalFlowAndDataSplitTest extends TestCase
     {
         $this->createWorkflowStatuses();
 
-        $admin = User::factory()->state(['role' => 'admin'])->create();
-        $courier = User::factory()->state(['role' => 'courier'])->create();
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
+        $courier = User::factory()->state(['role' => 'courier', 'branch_id' => $branch->id])->create();
 
         $shipment = $this->createShipment($branch, $courier->id, 'out_for_delivery');
 
@@ -231,11 +221,10 @@ class ApprovalFlowAndDataSplitTest extends TestCase
     {
         $this->createWorkflowStatuses();
 
-        $admin = User::factory()->state(['role' => 'admin'])->create();
-        $courierA = User::factory()->state(['role' => 'courier'])->create();
-        $courierB = User::factory()->state(['role' => 'courier'])->create();
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
+        $courierA = User::factory()->state(['role' => 'courier', 'branch_id' => $branch->id])->create();
+        $courierB = User::factory()->state(['role' => 'courier', 'branch_id' => $branch->id])->create();
 
         $shipment = $this->createShipment($branch, $courierA->id, 'in_transit');
 
@@ -261,9 +250,8 @@ class ApprovalFlowAndDataSplitTest extends TestCase
     {
         $this->createWorkflowStatuses();
 
-        $admin = User::factory()->state(['role' => 'admin'])->create();
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $shipment = $this->createShipment($branch, null, 'pending');
 
         $payment = Payment::query()->create([
@@ -323,7 +311,6 @@ class ApprovalFlowAndDataSplitTest extends TestCase
             'customer_id' => $customer->id,
             'branch_id' => $branch->id,
             'courier_id' => $courierId,
-            'zone_id' => $branch->zone_id,
             'status_id' => ShipmentStatus::query()->where('code', $statusCode)->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000001',
@@ -342,8 +329,6 @@ class ApprovalFlowAndDataSplitTest extends TestCase
             'auto_insurance_amount' => 0,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'pricing_mode' => 'auto',

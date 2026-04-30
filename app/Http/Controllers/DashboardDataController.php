@@ -10,7 +10,7 @@ use App\Models\Shipment;
 use App\Models\ShipmentTracking;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\Zone;
+
 use App\Models\ShipmentStatus;
 use App\Models\RateCard;
 use App\Models\RateCardApproval;
@@ -514,13 +514,6 @@ class DashboardDataController extends Controller
             'gt_7_days' => (clone $outstandingPayments)->where('created_at', '<', now()->subDays(7))->count(),
         ];
 
-        $codAging = [
-            '0_1_days' => Shipment::query()->where('is_cod', true)->where('payment_status', '!=', 'paid')->where('created_at', '>=', now()->subDay())->count(),
-            '2_3_days' => Shipment::query()->where('is_cod', true)->where('payment_status', '!=', 'paid')->whereBetween('created_at', [now()->subDays(3), now()->subDays(1)])->count(),
-            '4_7_days' => Shipment::query()->where('is_cod', true)->where('payment_status', '!=', 'paid')->whereBetween('created_at', [now()->subDays(7), now()->subDays(3)])->count(),
-            'gt_7_days' => Shipment::query()->where('is_cod', true)->where('payment_status', '!=', 'paid')->where('created_at', '<', now()->subDays(7))->count(),
-        ];
-
         $refundCancelNominalByBranch = Branch::query()
             ->leftJoin('shipments', 'shipments.branch_id', '=', 'branches.id')
             ->leftJoin('payments', function ($join) {
@@ -536,7 +529,6 @@ class DashboardDataController extends Controller
             'settlement_trend_daily' => $dailySettlementTrend,
             'settlement_trend_weekly' => $weeklySettlementTrend,
             'outstanding_payment_aging' => $outstandingAging,
-            'cod_aging' => $codAging,
             'refund_cancel_nominal_by_branch' => $refundCancelNominalByBranch,
         ];
     }
@@ -544,20 +536,19 @@ class DashboardDataController extends Controller
     private function masterDataGovernancePayload(): array
     {
         $pendingApprovals = RateCardApproval::query()
-            ->with(['rateCard.zone', 'requester', 'approver'])
+            ->with(['rateCard.originBranch', 'rateCard.destinationBranch', 'requester', 'approver'])
             ->where('status', 'pending')
             ->latest('created_at')
             ->get();
 
         $approvalHistory = RateCardApproval::query()
-            ->with(['rateCard.zone', 'requester', 'approver'])
+            ->with(['rateCard.originBranch', 'rateCard.destinationBranch', 'requester', 'approver'])
             ->where('status', '!=', 'pending')
             ->latest('approved_at')
             ->limit(20)
             ->get();
 
         $branchCount = Branch::query()->count();
-        $zoneCount = Zone::query()->count();
         $rateCardCount = RateCard::query()->count();
         $vehicleCount = Vehicle::query()->count();
         $statusCount = ShipmentStatus::query()->count();
@@ -567,13 +558,12 @@ class DashboardDataController extends Controller
             'approval_history' => $approvalHistory,
             'master_data_stats' => [
                 'branches' => $branchCount,
-                'zones' => $zoneCount,
                 'rate_cards' => $rateCardCount,
                 'vehicles' => $vehicleCount,
                 'shipment_statuses' => $statusCount,
             ],
             'recent_changes' => AuditLog::query()
-                ->whereIn('action', ['branch.created', 'branch.updated', 'zone.created', 'rate_card.created', 'vehicle.created'])
+                ->whereIn('action', ['branch.created', 'branch.updated', 'rate_card.created', 'vehicle.created'])
                 ->with(['user'])
                 ->latest('created_at')
                 ->limit(15)
@@ -844,7 +834,6 @@ class DashboardDataController extends Controller
         $resources = [
             'users' => [User::query(), 'name'],
             'branches' => [Branch::query(), 'name'],
-            'zones' => [Zone::query(), 'name'],
             'rate_cards' => [RateCard::query(), 'service_type'],
             'vehicles' => [Vehicle::query(), 'name'],
             'shipments' => [Shipment::query(), 'tracking_number'],

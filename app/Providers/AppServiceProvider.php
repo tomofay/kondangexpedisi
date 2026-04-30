@@ -7,6 +7,8 @@ use App\Models\Shipment;
 use App\Policies\PaymentPolicy;
 use App\Policies\ShipmentPolicy;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,5 +28,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Shipment::class, ShipmentPolicy::class);
         Gate::policy(Payment::class, PaymentPolicy::class);
+
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+
+        Model::shouldBeStrict(! $this->app->environment('production'));
     }
 }

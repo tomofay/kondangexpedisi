@@ -10,7 +10,6 @@ use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
 use App\Models\User;
-use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,8 +22,7 @@ class DailyReconciliationAndPushReadyTest extends TestCase
         $this->createWorkflowStatuses();
 
         $admin = User::factory()->state(['role' => 'admin'])->create();
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $deliveredShipment = $this->createShipment($branch, 'delivered', 'paid');
         $deliveredShipment->payments()->create([
@@ -85,7 +83,7 @@ class DailyReconciliationAndPushReadyTest extends TestCase
             ]);
         });
 
-        $response = $this->withMobileToken($user)->getJson(route('notifications.push-ready'));
+        $response = $this->actingAs($user)->getJson(route('customer.notifications.push-ready'));
 
         $response
             ->assertOk()
@@ -125,7 +123,6 @@ class DailyReconciliationAndPushReadyTest extends TestCase
             'branch_id' => $branch->id,
             'courier_id' => null,
             'vehicle_id' => null,
-            'zone_id' => $branch->zone_id,
             'status_id' => $statusId,
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000001',
@@ -144,8 +141,6 @@ class DailyReconciliationAndPushReadyTest extends TestCase
             'auto_insurance_amount' => 0,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => $paymentStatus,
             'processing_status' => 'ok',
             'pricing_mode' => 'auto',

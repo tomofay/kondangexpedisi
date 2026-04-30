@@ -10,16 +10,25 @@ class BranchController extends Controller
 {
     /**
      * Display a listing of the resource.
+     * Admin: semua cabang. Manager & Kasir: hanya cabangnya sendiri.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Branch::class);
+        $actor = $request->user();
+
         $perPage = min(max((int) $request->integer('per_page', 15), 5), 100);
         $sortBy = in_array($request->input('sort_by'), ['id', 'code', 'name', 'city', 'created_at'], true)
             ? $request->input('sort_by')
             : 'created_at';
         $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
 
-        $query = Branch::query()->with('zone');
+        $query = Branch::query();
+
+        // Manager & Kasir hanya melihat cabangnya sendiri
+        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+            $query->where('id', $actor->branch_id);
+        }
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($q) use ($search) {
@@ -28,10 +37,6 @@ class BranchController extends Controller
                     ->orWhere('city', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%");
             });
-        }
-
-        if ($request->filled('zone_id')) {
-            $query->where('zone_id', $request->integer('zone_id'));
         }
 
         if ($request->filled('is_active')) {
@@ -44,18 +49,12 @@ class BranchController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
+     * Store a newly created resource in storage. Admin only.
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Branch::class);
+
         $validated = $request->validate([
             'code' => [
                 'required',
@@ -68,13 +67,12 @@ class BranchController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['required', 'string'],
-            'zone_id' => ['nullable', 'exists:zones,id'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $branch = Branch::query()->create($validated);
 
-        return response()->json(['message' => 'Branch created.', 'data' => $branch->load('zone')], 201);
+        return response()->json(['message' => 'Branch created.', 'data' => $branch], 201);
     }
 
     /**
@@ -82,22 +80,19 @@ class BranchController extends Controller
      */
     public function show(Branch $branch)
     {
-        return response()->json($branch->load(['zone', 'users', 'vehicles', 'shipments']));
-    }
+        $this->authorize('view', $branch);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Branch $branch)
-    {
-        //
+        return response()->json($branch->load(['users', 'vehicles', 'shipments']));
     }
 
     /**
      * Update the specified resource in storage.
+     * Admin: semua cabang. Manager: hanya cabangnya sendiri.
      */
     public function update(Request $request, Branch $branch)
     {
+        $this->authorize('update', $branch);
+
         $validated = $request->validate([
             'code' => [
                 'sometimes',
@@ -110,20 +105,21 @@ class BranchController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['sometimes', 'string'],
-            'zone_id' => ['nullable', 'exists:zones,id'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $branch->update($validated);
 
-        return response()->json(['message' => 'Branch updated.', 'data' => $branch->fresh()->load('zone')]);
+        return response()->json(['message' => 'Branch updated.', 'data' => $branch->fresh()]);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified resource from storage. Admin only.
      */
     public function destroy(Branch $branch)
     {
+        $this->authorize('delete', $branch);
+
         $branch->delete();
 
         return response()->json(['message' => 'Branch deleted.']);

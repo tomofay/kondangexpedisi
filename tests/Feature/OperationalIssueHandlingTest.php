@@ -10,7 +10,6 @@ use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\Zone;
 use App\Services\ShipmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -21,12 +20,15 @@ class OperationalIssueHandlingTest extends TestCase
 
     public function test_manual_override_can_create_shipment_with_manual_pricing(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = $this->createBranch();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $this->createWorkflowStatuses();
-        $branch = $this->createBranchWithZone();
+
+        $destinationBranch = Branch::factory()->create();
 
         $response = $this->actingAs($admin)->postJson(route('shipments.store'), [
             'branch_id' => $branch->id,
+            'destination_branch_id' => $destinationBranch->id,
             'sender_name' => 'Pengirim Manual',
             'sender_phone' => '081200000001',
             'sender_address' => 'Jl. Manual No. 1',
@@ -76,11 +78,10 @@ class OperationalIssueHandlingTest extends TestCase
     public function test_midtrans_callback_failure_marks_payment_processing_error(): void
     {
         $this->createWorkflowStatuses();
-        $branch = $this->createBranchWithZone();
+        $branch = $this->createBranch();
         $shipment = Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-'.strtoupper(fake()->bothify('######')),
             'branch_id' => $branch->id,
-            'zone_id' => $branch->zone_id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000003',
@@ -95,8 +96,6 @@ class OperationalIssueHandlingTest extends TestCase
             'insurance_amount' => 0,
             'admin_fee' => 2500,
             'total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'current_status_at' => now(),
             'estimated_delivery_at' => now()->addDay(),
@@ -138,14 +137,13 @@ class OperationalIssueHandlingTest extends TestCase
 
     public function test_tracking_failure_marks_shipment_processing_error(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = $this->createBranch();
+        $manager = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $this->createWorkflowStatuses();
-        $branch = $this->createBranchWithZone();
 
         $shipment = Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-'.strtoupper(fake()->bothify('######')),
             'branch_id' => $branch->id,
-            'zone_id' => $branch->zone_id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000003',
@@ -160,8 +158,6 @@ class OperationalIssueHandlingTest extends TestCase
             'insurance_amount' => 0,
             'admin_fee' => 2500,
             'total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'current_status_at' => now(),
@@ -174,7 +170,7 @@ class OperationalIssueHandlingTest extends TestCase
         });
 
         try {
-            $response = $this->actingAs($admin)->postJson(route('shipment-trackings.store'), [
+            $response = $this->actingAs($manager)->postJson(route('shipment-trackings.store'), [
                 'shipment_id' => $shipment->id,
                 'status_id' => ShipmentStatus::query()->where('code', 'in_transit')->value('id'),
                 'location' => 'Jakarta',
@@ -199,9 +195,10 @@ class OperationalIssueHandlingTest extends TestCase
 
     public function test_create_shipment_rolls_back_if_payment_create_fails(): void
     {
-        $admin = User::factory()->state(['role' => 'admin'])->create();
+        $branch = $this->createBranch();
+        $destinationBranch = Branch::factory()->create();
+        $admin = User::factory()->state(['role' => 'manager', 'branch_id' => $branch->id])->create();
         $this->createWorkflowStatuses();
-        $branch = $this->createBranchWithZone();
 
         Payment::creating(function () {
             throw new \RuntimeException('Forced payment create failure.');
@@ -210,6 +207,7 @@ class OperationalIssueHandlingTest extends TestCase
         try {
             $response = $this->actingAs($admin)->postJson(route('shipments.store'), [
                 'branch_id' => $branch->id,
+                'destination_branch_id' => $destinationBranch->id,
                 'sender_name' => 'Pengirim',
                 'sender_phone' => '081200000001',
                 'sender_address' => 'Jl. Satu No. 1',
@@ -218,7 +216,6 @@ class OperationalIssueHandlingTest extends TestCase
                 'recipient_address' => 'Jl. Dua No. 2',
                 'service_type' => 'regular',
                 'total_weight_kg' => 1,
-                'zone_id' => $branch->zone_id,
             ]);
 
             $response->assertStatus(500);
@@ -234,7 +231,7 @@ class OperationalIssueHandlingTest extends TestCase
     public function test_assign_courier_rolls_back_if_tracking_create_fails(): void
     {
         $this->createWorkflowStatuses();
-        $branch = $this->createBranchWithZone();
+        $branch = $this->createBranch();
         $courier = User::factory()->state([
             'role' => 'courier',
             'branch_id' => $branch->id,
@@ -246,7 +243,6 @@ class OperationalIssueHandlingTest extends TestCase
         $shipment = Shipment::query()->create([
             'tracking_number' => 'SXP-TEST-'.strtoupper(fake()->bothify('######')),
             'branch_id' => $branch->id,
-            'zone_id' => $branch->zone_id,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
             'sender_phone' => '081200000003',
@@ -261,8 +257,6 @@ class OperationalIssueHandlingTest extends TestCase
             'insurance_amount' => 0,
             'admin_fee' => 2500,
             'total_amount' => 12500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'current_status_at' => now(),
@@ -307,12 +301,9 @@ class OperationalIssueHandlingTest extends TestCase
         }
     }
 
-    private function createBranchWithZone(): Branch
+    private function createBranch(): Branch
     {
-        $zone = Zone::factory()->create();
-
         return Branch::factory()->create([
-            'zone_id' => $zone->id,
         ]);
     }
 }

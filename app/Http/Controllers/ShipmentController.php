@@ -20,7 +20,6 @@ use Picqer\Barcode\BarcodeGeneratorPNG;
 
 class ShipmentController extends Controller
 {
-    private ?bool $hasDestinationBranchColumn = null;
 
     /**
      * Display a listing of the resource.
@@ -46,6 +45,10 @@ class ShipmentController extends Controller
             } else {
                 $query->where('branch_id', $branch->id);
             }
+        }
+
+        if ($actor?->role === 'courier') {
+            $query->where('courier_id', $actor->id);
         }
 
         if ($search = trim((string) $request->input('search', ''))) {
@@ -104,20 +107,25 @@ class ShipmentController extends Controller
             'recipient_address' => ['required', 'string'],
             'service_type' => ['required', Rule::in(['regular', 'express', 'same_day', 'economy'])],
             'total_weight_kg' => ['required', 'numeric', 'min:0.1'],
-            'zone_id' => ['nullable', 'exists:zones,id'],
             'total_volume' => ['nullable', 'numeric', 'min:0'],
             'insurance_amount' => ['nullable', 'numeric', 'min:0'],
             'admin_fee' => ['nullable', 'numeric', 'min:0'],
             'subtotal_amount' => ['nullable', 'numeric', 'min:0'],
             'total_amount' => ['nullable', 'numeric', 'min:0'],
-            'is_cod' => ['sometimes', 'boolean'],
-            'cod_amount' => ['nullable', 'numeric', 'min:0'],
+            'payment_method' => ['nullable', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet'])],
             'estimated_delivery_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'manual_override' => ['sometimes', 'boolean'],
             'manual_override_requires_approval' => ['sometimes', 'boolean'],
             'manual_override_reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // Enforce branch scope for manager & kasir
+        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+            if ((int) $validated['branch_id'] !== (int) $actor->branch_id) {
+                abort(403, 'Anda hanya bisa membuat shipment di cabang Anda.');
+            }
+        }
 
         $manualOverride = (bool) ($validated['manual_override'] ?? false);
         $manualOverrideRequiresApproval = (bool) ($validated['manual_override_requires_approval'] ?? false);
@@ -142,15 +150,6 @@ class ShipmentController extends Controller
             }
         }
 
-        if (empty($validated['zone_id']) && ! empty($validated['destination_branch_id'])) {
-            $validated['zone_id'] = Branch::query()->whereKey($validated['destination_branch_id'])->value('zone_id');
-        }
-
-        if (! $manualOverride && empty($validated['zone_id'])) {
-            throw ValidationException::withMessages([
-                'zone_id' => 'Zona tujuan tidak ditemukan. Pilih cabang tujuan yang memiliki zona aktif.',
-            ]);
-        }
 
         try {
             if ($manualOverride && $manualOverrideRequiresApproval) {
@@ -276,11 +275,14 @@ class ShipmentController extends Controller
         $this->authorize('update', $shipment);
         $actor = $request->user();
 
-        if ($actor?->role === 'courier') {
-            abort(403, 'Kurir hanya boleh update status dan bukti antar melalui endpoint tracking/transisi status.');
+        // Kasir harus melalui approval manager untuk update
+        if ($actor?->role === 'kasir') {
+            return $this->requestKasirEditApproval($request, $shipment, 'shipment');
         }
 
-        $supportsDestinationBranch = $this->supportsDestinationBranchColumn();
+        if ($actor?->role === 'courier') {
+            abort(403, 'Kurir hanya boleh update status melalui endpoint tracking/transisi status.');
+        }
 
         $before = $shipment->only([
             'branch_id',
@@ -368,21 +370,17 @@ class ShipmentController extends Controller
             ]);
         }
 
-        if (! empty($validated['destination_branch_id'])) {
-            $validated['zone_id'] = Branch::query()->whereKey($validated['destination_branch_id'])->value('zone_id');
-        }
-
         if (! $supportsDestinationBranch) {
             unset($validated['destination_branch_id']);
         }
 
-        $amountFields = array_intersect_key($validated, array_flip(['branch_id', 'destination_branch_id', 'zone_id', 'service_type', 'total_weight_kg', 'insurance_amount', 'admin_fee']));
+        $amountFields = array_intersect_key($validated, array_flip(['branch_id', 'destination_branch_id', 'service_type', 'total_weight_kg', 'insurance_amount', 'admin_fee']));
 
         if (! empty($amountFields) && ! $manualOverride) {
             $recalculated = $shipmentService->calculateTotalAmount(array_merge([
                 'branch_id' => $validated['branch_id'] ?? $shipment->branch_id,
+                'destination_branch_id' => $validated['destination_branch_id'] ?? $shipment->destination_branch_id,
             ], [
-                'zone_id' => $validated['zone_id'] ?? $shipment->zone_id,
                 'service_type' => $validated['service_type'] ?? $shipment->service_type,
                 'total_weight_kg' => $validated['total_weight_kg'] ?? $shipment->total_weight_kg,
                 'insurance_amount' => $validated['insurance_amount'] ?? $shipment->insurance_amount,
@@ -520,7 +518,7 @@ class ShipmentController extends Controller
 
     public function requestPricingOverride(Request $request, Shipment $shipment, ShipmentService $shipmentService)
     {
-        $this->authorize('update', $shipment);
+        $this->authorize('requestPricingOverride', $shipment);
         $actor = $request->user();
 
         $this->assertManualCorrectionPermission($actor, (int) $shipment->branch_id);
@@ -558,7 +556,7 @@ class ShipmentController extends Controller
 
     public function approvePricingOverride(Request $request, Shipment $shipment, ShipmentService $shipmentService)
     {
-        $this->authorize('update', $shipment);
+        $this->authorize('approvePricingOverride', $shipment);
 
         if ($request->user()?->role !== 'admin') {
             throw ValidationException::withMessages([
@@ -584,7 +582,7 @@ class ShipmentController extends Controller
 
     public function rejectPricingOverride(Request $request, Shipment $shipment, ShipmentService $shipmentService)
     {
-        $this->authorize('update', $shipment);
+        $this->authorize('approvePricingOverride', $shipment);
 
         if ($request->user()?->role !== 'admin') {
             throw ValidationException::withMessages([
@@ -711,15 +709,28 @@ class ShipmentController extends Controller
         ]);
     }
 
-    private function supportsDestinationBranchColumn(): bool
+    private function requestKasirEditApproval(Request $request, $model, string $modelType)
     {
-        if ($this->hasDestinationBranchColumn !== null) {
-            return $this->hasDestinationBranchColumn;
-        }
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
 
-        $this->hasDestinationBranchColumn = Schema::hasColumn('shipments', 'destination_branch_id');
+        $changes = $request->except(['reason', '_token', '_method']);
 
-        return $this->hasDestinationBranchColumn;
+        $task = app(ApprovalWorkflowService::class)->requestKasirEditApproval(
+            $model,
+            $request->user(),
+            $changes,
+            $validated['reason']
+        );
+
+        return response()->json([
+            'message' => 'Permintaan perubahan dikirim ke manager untuk disetujui.',
+            'data' => [
+                'task_id' => $task->id,
+                'task_status' => $task->status,
+            ],
+        ], 202);
     }
 
     public function assignCourier(Request $request, Shipment $shipment, ShipmentService $shipmentService, ApprovalWorkflowService $approvalWorkflowService)
@@ -771,7 +782,7 @@ class ShipmentController extends Controller
 
     public function transitionStatus(Request $request, Shipment $shipment, ShipmentService $shipmentService, ApprovalWorkflowService $approvalWorkflowService)
     {
-        $this->authorize('update', $shipment);
+        $this->authorize('transition', $shipment);
 
         $validated = $request->validate([
             'status_code' => ['required', 'string', 'max:40'],
@@ -852,6 +863,10 @@ class ShipmentController extends Controller
         }
 
         if ($actor->role === 'kasir' && (int) $actor->branch_id === $targetBranchId) {
+            return;
+        }
+
+        if ($actor->role === 'manager' && (int) $actor->branch_id === $targetBranchId) {
             return;
         }
 

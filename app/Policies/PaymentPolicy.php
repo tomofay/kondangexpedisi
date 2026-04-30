@@ -8,74 +8,75 @@ use App\Models\User;
 class PaymentPolicy
 {
     /**
-     * Determine whether the user can view any models.
+     * Admin (kantor pusat) hanya bisa lihat data — TIDAK bisa create/update/delete.
+     * Manager bisa CRUD di cabangnya.
+     * Kasir bisa create & view di cabangnya, tapi update butuh approval manager.
      */
+
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, ['admin', 'kasir', 'manager', 'customer'], true);
+        return in_array($user->role, ['admin', 'kasir', 'manager'], true);
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Payment $payment): bool
     {
         if ($user->role === 'admin') {
-            return true;
+            return true; // Admin bisa lihat semua
         }
 
-        if ($user->role === 'manager') {
-            return true;
-        }
-
-        if ($user->role === 'kasir') {
+        // Manager & kasir hanya bisa lihat payment di cabangnya
+        if (in_array($user->role, ['manager', 'kasir'], true)) {
             return (int) $payment->shipment?->branch_id === (int) $user->branch_id;
-        }
-
-        if ($user->role === 'customer') {
-            return false;
         }
 
         return false;
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return in_array($user->role, ['admin', 'kasir', 'manager', 'customer'], true);
+        // Admin TIDAK bisa create payment
+        // Manager & kasir bisa create
+        return in_array($user->role, ['manager', 'kasir'], true);
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, Payment $payment): bool
     {
-        return in_array($user->role, ['admin', 'kasir', 'manager'], true);
+        // Admin TIDAK bisa update payment
+        if ($user->role === 'admin') {
+            return false;
+        }
+
+        // Manager bisa update langsung di cabangnya
+        if ($user->role === 'manager') {
+            return (int) $payment->shipment?->branch_id === (int) $user->branch_id;
+        }
+
+        // Kasir bisa "update" tapi controller akan redirect ke approval flow
+        if ($user->role === 'kasir') {
+            return (int) $payment->shipment?->branch_id === (int) $user->branch_id;
+        }
+
+        return false;
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(User $user, Payment $payment): bool
     {
-        return $user->role === 'admin';
+        // Hanya manager di cabangnya
+        if ($user->role === 'manager') {
+            return (int) $payment->shipment?->branch_id === (int) $user->branch_id;
+        }
+
+        return false;
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, Payment $payment): bool
     {
-        return $user->role === 'admin';
+        return $user->role === 'manager'
+            && (int) $payment->shipment?->branch_id === (int) $user->branch_id;
     }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, Payment $payment): bool
     {
-        return $user->role === 'admin';
+        return false;
     }
 }

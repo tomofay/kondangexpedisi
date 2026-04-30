@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\RateCard;
 use App\Services\ApprovalWorkflowService;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 
 class RateCardController extends Controller
@@ -13,36 +14,30 @@ class RateCardController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', RateCard::class);
+
         $perPage = min(max((int) $request->integer('per_page', 15), 5), 100);
         $sortBy = in_array($request->input('sort_by'), ['id', 'service_type', 'base_price', 'per_kg_price', 'created_at'], true)
             ? $request->input('sort_by')
             : 'created_at';
         $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
 
-        $query = RateCard::query()->with(['originZone', 'destinationZone']);
+        $query = RateCard::query()->with(['originBranch', 'destinationBranch']);
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($q) use ($search) {
                 $q->where('service_type', 'like', "%{$search}%")
-                    ->orWhereHas('originZone', fn ($zoneQuery) => $zoneQuery->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))
-                    ->orWhereHas('destinationZone', fn ($zoneQuery) => $zoneQuery->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
+                    ->orWhereHas('originBranch', fn ($bQuery) => $bQuery->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))
+                    ->orWhereHas('destinationBranch', fn ($bQuery) => $bQuery->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
             });
         }
 
-        if ($request->filled('origin_zone_id')) {
-            $query->where('origin_zone_id', $request->integer('origin_zone_id'));
+        if ($request->filled('origin_branch_id')) {
+            $query->where('origin_branch_id', $request->integer('origin_branch_id'));
         }
 
-        if ($request->filled('destination_zone_id')) {
-            $query->where('destination_zone_id', $request->integer('destination_zone_id'));
-        }
-
-        if ($request->filled('zone_id')) {
-            $zoneId = $request->integer('zone_id');
-            $query->where(function ($routeQuery) use ($zoneId) {
-                $routeQuery->where('origin_zone_id', $zoneId)
-                    ->orWhere('destination_zone_id', $zoneId);
-            });
+        if ($request->filled('destination_branch_id')) {
+            $query->where('destination_branch_id', $request->integer('destination_branch_id'));
         }
 
         if ($request->filled('service_type')) {
@@ -59,22 +54,17 @@ class RateCardController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
+     * Admin: direct create. Manager: via approval ke admin.
      */
-    public function store(Request $request)
+    public function store(Request $request, ApprovalWorkflowService $approvalWorkflowService, AuditLogService $auditLogService)
     {
+        $this->authorize('create', RateCard::class);
+        $actor = $request->user();
+
         $validated = $request->validate([
-            'origin_zone_id' => ['nullable', 'exists:zones,id'],
-            'destination_zone_id' => ['nullable', 'exists:zones,id'],
-            'zone_id' => ['nullable', 'exists:zones,id'],
+            'origin_branch_id' => ['required', 'exists:branches,id'],
+            'destination_branch_id' => ['required', 'exists:branches,id'],
             'service_type' => ['required', 'in:regular,express,same_day,economy'],
             'min_weight_kg' => ['required', 'numeric', 'min:0'],
             'max_weight_kg' => ['nullable', 'numeric', 'gte:min_weight_kg'],
@@ -82,20 +72,40 @@ class RateCardController extends Controller
             'per_kg_price' => ['required', 'numeric', 'min:0'],
             'insurance_fee' => ['required', 'numeric', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $routeZoneId = $validated['zone_id'] ?? null;
-        $validated['origin_zone_id'] = $validated['origin_zone_id'] ?? $routeZoneId;
-        $validated['destination_zone_id'] = $validated['destination_zone_id'] ?? $routeZoneId;
-        $validated['zone_id'] = $validated['destination_zone_id'];
+        // Manager harus via approval ke admin
+        if ($actor?->role === 'manager') {
+            $task = $approvalWorkflowService->requestKasirEditApproval(
+                new RateCard(),
+                $actor,
+                $validated,
+                $validated['reason'] ?? 'Manager mengajukan pembuatan rate card baru.'
+            );
 
-        if (! $validated['origin_zone_id'] || ! $validated['destination_zone_id']) {
-            return response()->json(['message' => 'Zona asal dan zona tujuan wajib diisi.'], 422);
+            return response()->json([
+                'message' => 'Pengajuan rate card baru dikirim ke admin untuk disetujui.',
+                'data' => [
+                    'task_id' => $task->id,
+                    'task_status' => $task->status,
+                ],
+            ], 202);
         }
 
+        // Admin langsung create
         $rateCard = RateCard::query()->create($validated);
 
-        return response()->json(['message' => 'Rate card created.', 'data' => $rateCard->load(['originZone', 'destinationZone'])], 201);
+        $auditLogService->record(
+            'rate_card.create',
+            $rateCard,
+            $actor,
+            [],
+            $rateCard->fresh()->only(['origin_branch_id', 'destination_branch_id', 'service_type', 'base_price', 'per_kg_price']),
+            'Rate card baru dibuat oleh admin.'
+        );
+
+        return response()->json(['message' => 'Rate card created.', 'data' => $rateCard->load(['originBranch', 'destinationBranch'])], 201);
     }
 
     /**
@@ -103,26 +113,23 @@ class RateCardController extends Controller
      */
     public function show(RateCard $rateCard)
     {
-        return response()->json($rateCard->load(['originZone', 'destinationZone']));
-    }
+        $this->authorize('view', $rateCard);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(RateCard $rateCard)
-    {
-        //
+        return response()->json($rateCard->load(['originBranch', 'destinationBranch']));
     }
 
     /**
      * Update the specified resource in storage.
+     * Admin: direct update. Manager: via approval ke admin.
      */
-    public function update(Request $request, RateCard $rateCard, ApprovalWorkflowService $approvalWorkflowService)
+    public function update(Request $request, RateCard $rateCard, ApprovalWorkflowService $approvalWorkflowService, AuditLogService $auditLogService)
     {
+        $this->authorize('update', $rateCard);
+        $actor = $request->user();
+
         $validated = $request->validate([
-            'origin_zone_id' => ['sometimes', 'nullable', 'exists:zones,id'],
-            'destination_zone_id' => ['sometimes', 'nullable', 'exists:zones,id'],
-            'zone_id' => ['sometimes', 'nullable', 'exists:zones,id'],
+            'origin_branch_id' => ['sometimes', 'exists:branches,id'],
+            'destination_branch_id' => ['sometimes', 'exists:branches,id'],
             'service_type' => ['sometimes', 'in:regular,express,same_day,economy'],
             'min_weight_kg' => ['sometimes', 'numeric', 'min:0'],
             'max_weight_kg' => ['nullable', 'numeric', 'gte:min_weight_kg'],
@@ -130,34 +137,62 @@ class RateCardController extends Controller
             'per_kg_price' => ['sometimes', 'numeric', 'min:0'],
             'insurance_fee' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if (array_key_exists('zone_id', $validated)) {
-            $validated['destination_zone_id'] = $validated['zone_id'];
+        // Manager harus via approval ke admin
+        if ($actor?->role === 'manager') {
+            $approval = $approvalWorkflowService->requestRateCardApproval(
+                $rateCard,
+                $actor,
+                collect($validated)->except('reason')->toArray(),
+                $validated['reason'] ?? 'Manager mengajukan perubahan rate card.'
+            );
+
+            return response()->json([
+                'message' => 'Pengajuan perubahan rate card dikirim ke admin untuk disetujui.',
+                'data' => [
+                    'approval_id' => $approval->id,
+                    'approval_status' => $approval->status,
+                ],
+            ], 202);
         }
 
-        if (array_key_exists('destination_zone_id', $validated) && $validated['destination_zone_id']) {
-            $validated['zone_id'] = $validated['destination_zone_id'];
-        }
+        // Admin langsung update
+        $before = $rateCard->only(array_keys($validated));
+        $rateCard->update(collect($validated)->except('reason')->toArray());
 
-        $approval = $approvalWorkflowService->requestRateCardApproval(
+        $auditLogService->record(
+            'rate_card.update',
             $rateCard,
-            $request->user(),
-            array_merge($rateCard->only(array_keys($validated)), $validated),
-            $request->input('reason', 'Perubahan rate card menunggu approval.')
+            $actor,
+            $before,
+            $rateCard->fresh()->only(array_keys($validated)),
+            'Rate card diperbarui oleh admin.'
         );
 
         return response()->json([
-            'message' => 'Perubahan rate card menunggu approval.',
-            'data' => $approval->load(['rateCard.originZone', 'rateCard.destinationZone', 'requester', 'approver']),
-        ], 202);
+            'message' => 'Rate card updated.',
+            'data' => $rateCard->fresh()->load(['originBranch', 'destinationBranch']),
+        ]);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified resource from storage. Admin only.
      */
-    public function destroy(RateCard $rateCard)
+    public function destroy(RateCard $rateCard, AuditLogService $auditLogService)
     {
+        $this->authorize('delete', $rateCard);
+
+        $auditLogService->record(
+            'rate_card.delete',
+            $rateCard,
+            request()->user(),
+            $rateCard->only(['origin_branch_id', 'destination_branch_id', 'service_type', 'base_price']),
+            [],
+            'Rate card dihapus.'
+        );
+
         $rateCard->delete();
 
         return response()->json(['message' => 'Rate card deleted.']);

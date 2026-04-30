@@ -62,7 +62,7 @@ class ApprovalController extends Controller
     public function approveTask(Request $request, AdminTask $task, ApprovalWorkflowService $approvalWorkflowService): JsonResponse
     {
         $actor = $request->user();
-        abort_unless($actor && $actor->role === 'admin', 403, 'Hanya admin yang dapat menyetujui approval sensitif.');
+        abort_unless($actor && in_array($actor->role, ['admin', 'manager'], true), 403, 'Hanya admin/manager yang dapat menyetujui approval.');
 
         $validated = $request->validate([
             'note' => ['nullable', 'string', 'max:500'],
@@ -80,7 +80,7 @@ class ApprovalController extends Controller
     public function rejectTask(Request $request, AdminTask $task, ApprovalWorkflowService $approvalWorkflowService): JsonResponse
     {
         $actor = $request->user();
-        abort_unless($actor && $actor->role === 'admin', 403, 'Hanya admin yang dapat menolak approval sensitif.');
+        abort_unless($actor && in_array($actor->role, ['admin', 'manager'], true), 403, 'Hanya admin/manager yang dapat menolak approval.');
 
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:500'],
@@ -110,7 +110,7 @@ class ApprovalController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 25);
 
         $query = RateCardApproval::query()
-            ->with(['rateCard.originZone', 'rateCard.destinationZone', 'requester:id,name,email', 'approver:id,name,email'])
+            ->with(['rateCard.originBranch', 'rateCard.destinationBranch', 'requester:id,name,email', 'approver:id,name,email'])
             ->latest();
 
         if ($status !== 'all') {

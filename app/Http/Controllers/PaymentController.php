@@ -79,7 +79,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'shipment_id' => ['required', 'exists:shipments,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
-            'method' => ['required', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet', 'cod'])],
+            'method' => ['required', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet'])],
             'amount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
         ]);
@@ -129,12 +129,37 @@ class PaymentController extends Controller
     public function update(Request $request, Payment $payment, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService, ApprovalWorkflowService $approvalWorkflowService)
     {
         $this->authorize('update', $payment);
+        $actor = $request->user();
+
+        // Kasir harus melalui approval manager
+        if ($actor?->role === 'kasir') {
+            $validated = $request->validate([
+                'reason' => ['required', 'string', 'max:500'],
+            ]);
+
+            $changes = $request->except(['reason', '_token', '_method']);
+
+            $task = $approvalWorkflowService->requestKasirEditApproval(
+                $payment,
+                $actor,
+                $changes,
+                $validated['reason']
+            );
+
+            return response()->json([
+                'message' => 'Permintaan perubahan dikirim ke manager untuk disetujui.',
+                'data' => [
+                    'task_id' => $task->id,
+                    'task_status' => $task->status,
+                ],
+            ], 202);
+        }
 
         $before = $payment->only(['status', 'method', 'notes']);
 
         $validated = $request->validate([
             'status' => ['nullable', Rule::in(['pending', 'settlement', 'deny', 'expire', 'cancel', 'refund', 'failed'])],
-            'method' => ['nullable', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet', 'cod'])],
+            'method' => ['nullable', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet'])],
             'notes' => ['nullable', 'string'],
             'manual_override' => ['sometimes', 'boolean'],
             'manual_override_reason' => ['nullable', 'string', 'max:500'],

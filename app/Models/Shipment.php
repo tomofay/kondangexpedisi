@@ -19,7 +19,6 @@ class Shipment extends Model
         'destination_branch_id',
         'courier_id',
         'vehicle_id',
-        'zone_id',
         'status_id',
         'sender_name',
         'sender_phone',
@@ -39,8 +38,6 @@ class Shipment extends Model
         'auto_admin_fee',
         'auto_total_amount',
         'corrected_total_amount',
-        'is_cod',
-        'cod_amount',
         'payment_status',
         'processing_status',
         'processing_error',
@@ -60,7 +57,6 @@ class Shipment extends Model
     protected function casts(): array
     {
         return [
-            'is_cod' => 'boolean',
             'total_weight_kg' => 'decimal:2',
             'total_volume' => 'decimal:2',
             'subtotal_amount' => 'decimal:2',
@@ -72,7 +68,6 @@ class Shipment extends Model
             'auto_admin_fee' => 'decimal:2',
             'auto_total_amount' => 'decimal:2',
             'corrected_total_amount' => 'decimal:2',
-            'cod_amount' => 'decimal:2',
             'pricing_approved_at' => 'datetime',
             'manual_override_at' => 'datetime',
             'current_status_at' => 'datetime',
@@ -104,11 +99,6 @@ class Shipment extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
-    }
-
-    public function zone(): BelongsTo
-    {
-        return $this->belongsTo(Zone::class);
     }
 
     public function status(): BelongsTo

@@ -34,6 +34,12 @@ class MidtransWebhookController extends Controller
             return response()->json(['message' => 'Payment tidak ditemukan.'], 404);
         }
 
+        // Cek apakah transaksi sudah pernah diproses sebelumnya (Idempotency)
+        if (($payload['transaction_id'] ?? null) === $payment->midtrans_transaction_id && 
+            in_array($payment->status, ['settlement', 'capture', 'paid'], true)) {
+            return response()->json(['message' => 'Transaksi sudah diproses sebelumnya.'], 200);
+        }
+
         if (! $midtransService->verifySignature($payload)) {
             $operationalIssueService->markPaymentError($payment, 'Signature Midtrans tidak valid.', ['payload' => $payload]);
             $this->recordCallbackFailure($payload, 'Signature Midtrans tidak valid.', $payment, $operationalIssueService);
@@ -55,10 +61,20 @@ class MidtransWebhookController extends Controller
             default => 'failed',
         };
 
-        $before = $payment->only(['status', 'midtrans_transaction_id', 'payment_type', 'bank_name', 'va_number', 'fraud_status']);
-
         try {
-            DB::transaction(function () use ($payment, $paymentStatus, $payload, $shipmentService, $auditLogService, $before) {
+            DB::transaction(function () use ($payment, $paymentStatus, $payload, $shipmentService, $auditLogService) {
+                // Lock data payment untuk mencegah race condition
+                $payment->refresh();
+                $payment->lockForUpdate();
+
+                // Re-check status setelah lock didapatkan
+                if (in_array($payment->status, ['settlement', 'capture', 'paid'], true) && 
+                    ($payload['transaction_id'] ?? null) === $payment->midtrans_transaction_id) {
+                    return;
+                }
+
+                $before = $payment->only(['status', 'midtrans_transaction_id', 'payment_type', 'bank_name', 'va_number', 'fraud_status']);
+
                 $payment->update([
                     'status' => $paymentStatus,
                     'processing_status' => 'ok',

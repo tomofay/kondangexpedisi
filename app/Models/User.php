@@ -128,16 +128,21 @@ class User extends Authenticatable
     {
         return match ($this->role) {
             'admin' => [
-                'view_dashboard', 'manage_users', 'approve_rate_cards', 'manage_branches',
-                'view_reports', 'export_data', 'manage_roles', 'audit_logs', 'manage_vehicles',
-                'manage_zones', 'manage_shipments', 'process_payments', 'broadcast_messages',
+                'view_dashboard', 'manage_users', 'approve_rate_cards',
+                'view_reports', 'export_data', 'view_audit_logs',
+                'manage_system_data', 'manage_landing_page',
+                'view_all_shipments', 'view_all_payments', 'view_all_branches',
             ],
             'manager' => [
-                'view_dashboard', 'view_team_performance', 'assign_shipments',
-                'manage_couriers', 'view_reports', 'export_data',
+                'view_dashboard', 'manage_branch_shipments', 'manage_branch_payments',
+                'assign_shipments', 'manage_couriers', 'request_rate_card_changes',
+                'approve_kasir_actions', 'view_branch_reports', 'export_data',
+                'update_own_branch',
             ],
             'kasir' => [
-                'view_dashboard', 'process_payments', 'view_shipments', 'print_labels',
+                'view_dashboard', 'create_shipments', 'view_branch_shipments',
+                'create_payments', 'view_branch_payments', 'request_edit_approval',
+                'print_labels',
             ],
             'courier' => [
                 'view_assigned_shipments', 'update_shipment_status', 'view_earnings',

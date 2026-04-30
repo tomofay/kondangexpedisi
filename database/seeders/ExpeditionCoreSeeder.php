@@ -19,7 +19,6 @@ use App\Models\ShipmentStatus;
 use App\Models\ShipmentTracking;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\Zone;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -31,41 +30,7 @@ class ExpeditionCoreSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Zones
-        $zonesByCode = collect([
-            [
-                'code' => 'JABODETABEK',
-                'name' => 'Jabodetabek',
-                'description' => 'Area Jakarta, Bogor, Depok, Tangerang, dan Bekasi',
-                'multiplier' => 1,
-            ],
-            [
-                'code' => 'JAWA-BALI',
-                'name' => 'Jawa dan Bali',
-                'description' => 'Pengiriman antar kota utama di Jawa dan Bali',
-                'multiplier' => 1.8,
-            ],
-            [
-                'code' => 'SUMAPA',
-                'name' => 'Sumatera, Kalimantan, Sulawesi, Papua',
-                'description' => 'Pengiriman antarpulau di luar Jawa dan Bali',
-                'multiplier' => 2.6,
-            ],
-        ])->mapWithKeys(function (array $zone) {
-            $record = Zone::query()->updateOrCreate(
-                ['code' => $zone['code']],
-                [
-                    'name' => $zone['name'],
-                    'description' => $zone['description'],
-                    'multiplier' => $zone['multiplier'],
-                    'is_active' => true,
-                ]
-            );
-
-            return [$zone['code'] => $record];
-        });
-
-        // 2. Branches
+        // 1. Branches
         $branchesByCode = collect([
             [
                 'code' => 'JKT-HQ',
@@ -74,7 +39,7 @@ class ExpeditionCoreSeeder extends Seeder
                 'phone' => '021-555-1000',
                 'email' => 'jakarta@kondangekspedisi.test',
                 'address' => 'Jl. Medan Merdeka Selatan No. 10, Jakarta Pusat',
-                'zone_code' => 'JABODETABEK',
+                'tier' => 1,
             ],
             [
                 'code' => 'SBY-01',
@@ -83,7 +48,7 @@ class ExpeditionCoreSeeder extends Seeder
                 'phone' => '031-555-2000',
                 'email' => 'surabaya@kondangekspedisi.test',
                 'address' => 'Jl. Basuki Rahmat No. 78, Surabaya',
-                'zone_code' => 'JAWA-BALI',
+                'tier' => 2,
             ],
             [
                 'code' => 'BDG-01',
@@ -92,9 +57,9 @@ class ExpeditionCoreSeeder extends Seeder
                 'phone' => '022-555-3000',
                 'email' => 'bandung@kondangekspedisi.test',
                 'address' => 'Jl. Asia Afrika No. 30, Bandung',
-                'zone_code' => 'JAWA-BALI',
+                'tier' => 2,
             ],
-        ])->mapWithKeys(function (array $branch) use ($zonesByCode) {
+        ])->mapWithKeys(function (array $branch) {
             $record = Branch::query()->updateOrCreate(
                 ['code' => $branch['code']],
                 [
@@ -103,21 +68,16 @@ class ExpeditionCoreSeeder extends Seeder
                     'phone' => $branch['phone'],
                     'email' => $branch['email'],
                     'address' => $branch['address'],
-                    'zone_id' => $zonesByCode[$branch['zone_code']]->id,
                     'is_active' => true,
                 ]
             );
 
+            $record->tier = $branch['tier'] ?? 1;
             return [$branch['code'] => $record];
         });
 
-        // 3. Rate Cards
-        $zoneOrder = ['JABODETABEK', 'JAWA-BALI', 'SUMAPA'];
-        $zoneRank = [
-            'JABODETABEK' => 1,
-            'JAWA-BALI' => 2,
-            'SUMAPA' => 3,
-        ];
+        // 2. Rate Cards (branch-to-branch)
+        $branchCodes = ['JKT-HQ', 'SBY-01', 'BDG-01'];
 
         $serviceFactor = [
             'economy' => 0.85,
@@ -126,11 +86,13 @@ class ExpeditionCoreSeeder extends Seeder
             'same_day' => 1.6,
         ];
 
-        foreach ($zoneOrder as $originZoneCode) {
-            foreach ($zoneOrder as $destinationZoneCode) {
-                $distanceRank = abs($zoneRank[$destinationZoneCode] - $zoneRank[$originZoneCode]);
-                $crossZonePenalty = $originZoneCode === $destinationZoneCode ? 1 : 1.2;
-                $baseRouteFactor = (1 + ($zoneRank[$originZoneCode] * 0.2) + ($zoneRank[$destinationZoneCode] * 0.3) + ($distanceRank * 0.25)) * $crossZonePenalty;
+        foreach ($branchCodes as $originCode) {
+            foreach ($branchCodes as $destinationCode) {
+                $originBranch = $branchesByCode[$originCode];
+                $destinationBranch = $branchesByCode[$destinationCode];
+
+                $isSameCity = $originCode === $destinationCode;
+                $baseRouteFactor = $isSameCity ? 1.0 : 1.4;
 
                 foreach ($serviceFactor as $serviceType => $factor) {
                     $basePrice = (int) round(14000 * $baseRouteFactor * $factor);
@@ -139,13 +101,12 @@ class ExpeditionCoreSeeder extends Seeder
 
                     RateCard::query()->updateOrCreate(
                         [
-                            'origin_zone_id' => $zonesByCode[$originZoneCode]->id,
-                            'destination_zone_id' => $zonesByCode[$destinationZoneCode]->id,
+                            'origin_branch_id' => $originBranch->id,
+                            'destination_branch_id' => $destinationBranch->id,
                             'service_type' => $serviceType,
                             'min_weight_kg' => 0,
                         ],
                         [
-                            'zone_id' => $zonesByCode[$destinationZoneCode]->id,
                             'max_weight_kg' => 1,
                             'base_price' => $basePrice,
                             'per_kg_price' => $perKgPrice,
@@ -263,7 +224,7 @@ class ExpeditionCoreSeeder extends Seeder
             ['section' => 'testimonial', 'title' => 'Budi, Pemilik UMKM', 'content' => 'Sejak pakai Kondang, pengiriman barang ke reseller jadi jauh lebih teratur dan minim komplain.', 'sort_order' => 1],
             ['section' => 'testimonial', 'title' => 'Siti, Online Seller', 'content' => 'Fitur tracking-nya juara, sangat akurat dan membantu pelanggan saya merasa tenang.', 'sort_order' => 2],
             ['section' => 'faq', 'title' => 'Berapa lama estimasi pengiriman?', 'content' => 'Reguler 2-4 hari, Express 1-2 hari kerja tergantung kota tujuan.', 'sort_order' => 1],
-            ['section' => 'faq', 'title' => 'Apakah bisa bayar di tempat (COD)?', 'content' => 'Ya, kami mendukung layanan COD untuk seluruh pengiriman domestik.', 'sort_order' => 2],
+            ['section' => 'faq', 'title' => 'Apakah bisa bayar di tempat?', 'content' => 'Pembayaran dapat dilakukan melalui kasir di cabang atau via Midtrans (transfer bank, e-wallet, dll).', 'sort_order' => 2],
             ['section' => 'cta', 'title' => 'Siap kirim paket pertama Anda?', 'subtitle' => 'Daftar sekarang dan nikmati kemudahan mengelola logistik bisnis Anda.', 'cta_label' => 'Mulai Sekarang', 'cta_url' => '/register', 'sort_order' => 1],
             ['section' => 'contact', 'title' => 'Customer Service', 'content' => '(021) 555-1000', 'sort_order' => 1],
             ['section' => 'contact', 'title' => 'Email Bantuan', 'content' => 'halo@kondang.co.id', 'sort_order' => 2],
@@ -326,7 +287,6 @@ class ExpeditionCoreSeeder extends Seeder
                 'destination_branch_id' => $destBranch->id,
                 'courier_id' => $courier?->id,
                 'vehicle_id' => $vehicleId,
-                'zone_id' => $destBranch->zone_id,
                 'status_id' => $statusMap[$statusCode],
                 'sender_name' => $sender['name'],
                 'sender_phone' => $sender['phone'],
@@ -341,8 +301,6 @@ class ExpeditionCoreSeeder extends Seeder
                 'insurance_amount' => 3000,
                 'admin_fee' => 2500,
                 'total_amount' => $baseAmount + 5500,
-                'is_cod' => false,
-                'cod_amount' => 0,
                 'payment_status' => $statusCode === 'pending' ? 'pending' : 'paid',
                 'current_status_at' => now(),
                 'estimated_delivery_at' => now()->addDays(3),

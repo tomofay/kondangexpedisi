@@ -32,7 +32,8 @@ class AuthenticatedSessionController extends Controller
         $hasCustomerProfile = $user?->customer()->exists() ?? false;
 
         $defaultRoute = match ($user?->role) {
-            'customer' => $hasCustomerProfile ? 'customer-portal.dashboard' : 'dashboard',
+            'customer' => 'customer.dashboard',
+            'courier' => 'courier.tasks',
             default => 'dashboard',
         };
 

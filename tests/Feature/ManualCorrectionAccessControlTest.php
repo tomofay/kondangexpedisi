@@ -6,7 +6,6 @@ use App\Models\Branch;
 use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\User;
-use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,8 +18,7 @@ class ManualCorrectionAccessControlTest extends TestCase
         $admin = User::factory()->state(['role' => 'admin'])->create();
         $this->createWorkflowStatuses();
 
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $shipment = $this->createShipment($branch, null);
 
@@ -38,11 +36,8 @@ class ManualCorrectionAccessControlTest extends TestCase
     public function test_kasir_only_can_request_manual_correction_in_own_branch(): void
     {
         $this->createWorkflowStatuses();
-
-        $zoneA = Zone::factory()->create();
-        $zoneB = Zone::factory()->create();
-        $branchA = Branch::factory()->create(['zone_id' => $zoneA->id]);
-        $branchB = Branch::factory()->create(['zone_id' => $zoneB->id]);
+        $branchA = Branch::factory()->create();
+        $branchB = Branch::factory()->create();
 
         $kasir = User::factory()->state([
             'role' => 'kasir',
@@ -77,8 +72,7 @@ class ManualCorrectionAccessControlTest extends TestCase
     {
         $this->createWorkflowStatuses();
 
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $courier = User::factory()->state([
             'role' => 'courier',
@@ -107,8 +101,7 @@ class ManualCorrectionAccessControlTest extends TestCase
     {
         $this->createWorkflowStatuses();
 
-        $zone = Zone::factory()->create();
-        $branch = Branch::factory()->create(['zone_id' => $zone->id]);
+        $branch = Branch::factory()->create();
 
         $customer = User::factory()->state(['role' => 'customer'])->create();
         $shipment = $this->createShipment($branch, null);
@@ -140,7 +133,6 @@ class ManualCorrectionAccessControlTest extends TestCase
         return Shipment::query()->create([
             'tracking_number' => 'SXP-ACL-'.strtoupper(fake()->bothify('######')),
             'branch_id' => $branch->id,
-            'zone_id' => $branch->zone_id,
             'courier_id' => $courierId,
             'status_id' => ShipmentStatus::query()->where('code', 'pending')->value('id'),
             'sender_name' => 'Pengirim',
@@ -160,8 +152,6 @@ class ManualCorrectionAccessControlTest extends TestCase
             'auto_insurance_amount' => 1000,
             'auto_admin_fee' => 2500,
             'auto_total_amount' => 13500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'pricing_mode' => 'auto',

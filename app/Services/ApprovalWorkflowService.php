@@ -127,7 +127,7 @@ class ApprovalWorkflowService
             );
         });
 
-        return $rateCard->fresh(['originZone', 'destinationZone']);
+        return $rateCard->fresh(['originBranch', 'destinationBranch']);
     }
 
     public function rejectRateCardApproval(RateCardApproval $approval, User $approver, string $reason): RateCardApproval
@@ -207,6 +207,45 @@ class ApprovalWorkflowService
         );
     }
 
+    public function requestKasirEditApproval(Model $model, User $kasir, array $changes, string $reason): AdminTask
+    {
+        $modelType = class_basename($model);
+        $identifier = match (true) {
+            $model instanceof Shipment => $model->tracking_number ?? 'New',
+            $model instanceof Payment => (string) ($model->id ?? 'New'),
+            $model instanceof RateCard => (string) ($model->id ?? 'New'),
+            default => (string) ($model->id ?? 'New'),
+        };
+
+        $dedupeField = match (true) {
+            $model instanceof Shipment => 'shipment_id',
+            $model instanceof Payment => 'payment_id',
+            default => null,
+        };
+
+        $actionData = [
+            'model_type' => get_class($model),
+            'model_id' => $model->id,
+            'changes' => $changes,
+            'reason' => $reason,
+            'kasir_id' => $kasir->id,
+            'kasir_branch_id' => $kasir->branch_id,
+        ];
+
+        if ($dedupeField && $model->id) {
+            $actionData[$dedupeField] = $model->id;
+        }
+
+        return $this->upsertAdminTask(
+            'kasir_edit_approval',
+            sprintf('Approval Edit %s %s dari Kasir', $modelType, $identifier),
+            $kasir,
+            'medium',
+            $actionData,
+            sprintf('Kasir %s mengajukan perubahan pada %s %s.', $kasir->name, $modelType, $identifier)
+        );
+    }
+
     public function requestPaymentManualStatusApproval(Payment $payment, User $actor, string $status, string $reason): AdminTask
     {
         return $this->upsertAdminTask(
@@ -227,9 +266,42 @@ class ApprovalWorkflowService
 
     public function approveAdminTask(AdminTask $task, User $approver, ?string $note = null): Model
     {
-        if ($approver->role !== 'admin') {
+        // Manager bisa approve kasir_edit_approval dari cabangnya
+        // Admin bisa approve semua task
+        if ($approver->role === 'manager') {
+            $allowedManagerTasks = [
+                'kasir_edit_approval',
+                'shipment_final_status_approval',
+                'shipment_reassign_approval',
+                'payment_manual_status_approval',
+            ];
+
+            if (! in_array($task->task_type, $allowedManagerTasks, true)) {
+                throw ValidationException::withMessages([
+                    'approver' => 'Manager hanya dapat menyetujui pengajuan operasional cabang.',
+                ]);
+            }
+
+            // Check branch scoping
+            $taskBranchId = 0;
+            if ($task->task_type === 'kasir_edit_approval') {
+                $taskBranchId = (int) ($task->action_data['kasir_branch_id'] ?? 0);
+            } elseif (in_array($task->task_type, ['shipment_final_status_approval', 'shipment_reassign_approval'], true)) {
+                $taskBranchId = (int) Shipment::query()->whereKey($task->action_data['shipment_id'] ?? 0)->value('branch_id');
+            } elseif ($task->task_type === 'payment_manual_status_approval') {
+                $taskBranchId = (int) Shipment::query()
+                    ->whereKey(Payment::query()->whereKey($task->action_data['payment_id'] ?? 0)->value('shipment_id') ?? 0)
+                    ->value('branch_id');
+            }
+            
+            if ($taskBranchId !== (int) $approver->branch_id) {
+                throw ValidationException::withMessages([
+                    'approver' => 'Anda hanya dapat menyetujui pengajuan dari cabang Anda.',
+                ]);
+            }
+        } elseif ($approver->role !== 'admin') {
             throw ValidationException::withMessages([
-                'approver' => 'Hanya admin yang dapat menyetujui approval sensitif.',
+                'approver' => 'Hanya admin atau manager yang dapat menyetujui approval.',
             ]);
         }
 
@@ -250,6 +322,7 @@ class ApprovalWorkflowService
                 'shipment_reassign_approval' => $this->applyShipmentReassignApproval($task, $approver, $note),
                 'payment_manual_status_approval' => $this->applyPaymentManualStatusApproval($task, $approver, $note),
                 'approve_rate_card' => $this->applyRateCardTaskApproval($task, $approver, $note),
+                'kasir_edit_approval' => $this->applyKasirEditApproval($task, $approver, $note),
                 default => throw ValidationException::withMessages([
                     'task_type' => 'Task approval sensitif tidak dikenali ('.$task->task_type.').',
                 ]),
@@ -269,9 +342,41 @@ class ApprovalWorkflowService
 
     public function rejectAdminTask(AdminTask $task, User $approver, string $reason): AdminTask
     {
-        if ($approver->role !== 'admin') {
+        // Manager bisa reject kasir_edit_approval dari cabangnya
+        if ($approver->role === 'manager') {
+            $allowedManagerTasks = [
+                'kasir_edit_approval',
+                'shipment_final_status_approval',
+                'shipment_reassign_approval',
+                'payment_manual_status_approval',
+            ];
+
+            if (! in_array($task->task_type, $allowedManagerTasks, true)) {
+                throw ValidationException::withMessages([
+                    'approver' => 'Manager hanya dapat menolak pengajuan operasional cabang.',
+                ]);
+            }
+
+            // Check branch scoping
+            $taskBranchId = 0;
+            if ($task->task_type === 'kasir_edit_approval') {
+                $taskBranchId = (int) ($task->action_data['kasir_branch_id'] ?? 0);
+            } elseif (in_array($task->task_type, ['shipment_final_status_approval', 'shipment_reassign_approval'], true)) {
+                $taskBranchId = (int) Shipment::query()->whereKey($task->action_data['shipment_id'] ?? 0)->value('branch_id');
+            } elseif ($task->task_type === 'payment_manual_status_approval') {
+                $taskBranchId = (int) Shipment::query()
+                    ->whereKey(Payment::query()->whereKey($task->action_data['payment_id'] ?? 0)->value('shipment_id') ?? 0)
+                    ->value('branch_id');
+            }
+
+            if ($taskBranchId !== (int) $approver->branch_id) {
+                throw ValidationException::withMessages([
+                    'approver' => 'Anda hanya dapat menolak pengajuan dari cabang Anda.',
+                ]);
+            }
+        } elseif ($approver->role !== 'admin') {
             throw ValidationException::withMessages([
-                'approver' => 'Hanya admin yang dapat menolak approval sensitif.',
+                'approver' => 'Hanya admin atau manager yang dapat menolak approval.',
             ]);
         }
 
@@ -385,6 +490,54 @@ class ApprovalWorkflowService
         $rateCardApproval = RateCardApproval::query()->findOrFail($rateCardApprovalId);
 
         return $this->approveRateCardApproval($rateCardApproval, $approver, $note);
+    }
+
+    private function applyKasirEditApproval(AdminTask $task, User $approver, ?string $note): Model
+    {
+        $modelClass = (string) ($task->action_data['model_type'] ?? '');
+        $modelId = (int) ($task->action_data['model_id'] ?? 0);
+        $changes = (array) ($task->action_data['changes'] ?? []);
+
+        if ($modelClass === '' || empty($changes)) {
+            throw ValidationException::withMessages([
+                'task' => 'Data perubahan tidak valid.',
+            ]);
+        }
+
+        // For new model creation (model_id is null/0)
+        if ($modelId <= 0) {
+            $model = new $modelClass;
+            $model->forceFill($changes)->save();
+
+            $this->auditLogService->record(
+                'kasir_edit.approved_create',
+                $model,
+                $approver,
+                [],
+                $model->fresh()->toArray(),
+                $note ?: 'Pembuatan baru dari kasir disetujui oleh manager.',
+                ['source' => 'kasir_approval', 'kasir_id' => $task->action_data['kasir_id'] ?? null]
+            );
+
+            return $model;
+        }
+
+        $model = $modelClass::query()->findOrFail($modelId);
+        $before = $model->only(array_keys($changes));
+
+        $model->forceFill($changes)->save();
+
+        $this->auditLogService->record(
+            'kasir_edit.approved',
+            $model,
+            $approver,
+            $before,
+            $model->fresh()->only(array_keys($changes)),
+            $note ?: 'Perubahan dari kasir disetujui oleh manager.',
+            ['source' => 'kasir_approval', 'kasir_id' => $task->action_data['kasir_id'] ?? null]
+        );
+
+        return $model->fresh();
     }
 
     private function upsertAdminTask(string $taskType, string $title, User $actor, string $priority, array $actionData, string $notes): AdminTask

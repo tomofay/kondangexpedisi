@@ -9,7 +9,6 @@ use App\Models\RateCard;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\Zone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,7 +17,6 @@ class AdminTrashController extends Controller
     private const RESOURCE_MAP = [
         'users' => [User::class, 'name'],
         'branches' => [Branch::class, 'name'],
-        'zones' => [Zone::class, 'name'],
         'rate_cards' => [RateCard::class, 'service_type'],
         'vehicles' => [Vehicle::class, 'name'],
         'shipments' => [Shipment::class, 'tracking_number'],

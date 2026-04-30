@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\RateCard;
-use App\Models\Zone;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,7 +21,6 @@ class RateCardFactory extends Factory
         $max = $min + fake()->randomFloat(2, 1, 5);
 
         return [
-            'zone_id' => Zone::factory(),
             'service_type' => fake()->randomElement(['regular', 'express', 'same_day', 'economy']),
             'min_weight_kg' => $min,
             'max_weight_kg' => $max,

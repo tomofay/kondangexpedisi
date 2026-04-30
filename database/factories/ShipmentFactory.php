@@ -8,7 +8,6 @@ use App\Models\Shipment;
 use App\Models\ShipmentStatus;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\Zone;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -32,7 +31,6 @@ class ShipmentFactory extends Factory
             'branch_id' => Branch::factory(),
             'courier_id' => User::factory()->state(['role' => 'courier']),
             'vehicle_id' => Vehicle::factory(),
-            'zone_id' => Zone::factory(),
             'status_id' => ShipmentStatus::factory(),
             'sender_name' => fake()->name(),
             'sender_phone' => fake()->e164PhoneNumber(),
@@ -47,8 +45,6 @@ class ShipmentFactory extends Factory
             'insurance_amount' => fake()->numberBetween(0, 5000),
             'admin_fee' => 2500,
             'total_amount' => $totalAmount + 2500,
-            'is_cod' => false,
-            'cod_amount' => 0,
             'payment_status' => fake()->randomElement(['unpaid', 'pending', 'paid']),
             'current_status_at' => now(),
             'estimated_delivery_at' => now()->addDays(fake()->numberBetween(1, 4)),
