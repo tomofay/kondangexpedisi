@@ -290,9 +290,14 @@
                     <li class="nav-item"><a class="nav-link" href="#layanan">Layanan</a></li>
                     <li class="nav-item"><a class="nav-link" href="#estimasi">Cek Tarif</a></li>
                     <li class="nav-item"><a class="nav-link" href="#tentang">Tentang Kami</a></li>
-                    <li class="nav-item ms-lg-4">
-                        <a href="{{ route('login') }}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold">Dashboard Admin</a>
+                    <li class="nav-item ms-lg-3">
+                        <a href="{{ route('login') }}" class="btn btn-outline-primary rounded-pill px-3 py-2 fw-bold">Masuk</a>
                     </li>
+                    @guest
+                    <li class="nav-item ms-2">
+                        <a href="{{ route('register') }}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">Daftar Gratis</a>
+                    </li>
+                    @endguest
                 </ul>
             </div>
         </div>
@@ -400,7 +405,7 @@
         <div class="container text-center">
             <div class="row g-4">
                 <div class="col-md-4">
-                    <h2 class="fw-bold mb-0">2.5K+</h2>
+                    <h2 class="fw-bold mb-0">{{ number_format($statistics->where('title','total_shipments')->first()?->content ?? 2500) }}+</h2>
                     <p class="text-white-50 mb-0 small">Paket Berhasil Terkirim</p>
                 </div>
                 <div class="col-md-4 border-start border-end border-white border-opacity-10">
@@ -408,7 +413,7 @@
                     <p class="text-white-50 mb-0 small">Armada Kurir Profesional</p>
                 </div>
                 <div class="col-md-4">
-                    <h2 class="fw-bold mb-0">120+</h2>
+                    <h2 class="fw-bold mb-0">{{ $branches->count() }}+</h2>
                     <p class="text-white-50 mb-0 small">Titik Distribusi Nasional</p>
                 </div>
             </div>
@@ -482,6 +487,21 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section for Customers -->
+    <section class="py-5" style="background: linear-gradient(135deg, #0061FF 0%, #4F46E5 100%); margin: 80px 0;">
+        <div class="container text-center py-4">
+            <span class="badge bg-white bg-opacity-25 text-white fw-bold px-3 py-2 rounded-pill mb-4" style="font-size:0.8rem;">UNTUK PENGIRIM</span>
+            <h2 class="fw-bold text-white mb-3" style="font-size:2.5rem; font-family:'Sora',sans-serif;">Siap Kirim Paket <span style="color:#FCD34D;">Sekarang?</span></h2>
+            <p class="text-white mb-5" style="opacity:0.85; max-width:560px; margin:0 auto 2rem;">Daftar sebagai pelanggan Kondang Ekspedisi dan nikmati kemudahan booking, tracking real-time, serta berbagai pilihan layanan pengiriman.</p>
+            <div class="d-flex gap-3 justify-content-center flex-wrap">
+                @guest
+                <a href="{{ route('register') }}" class="btn btn-light rounded-pill px-5 py-3 fw-bold shadow-sm" style="font-size:1rem; color:#0061FF;"><i class="bi bi-person-plus-fill me-2"></i>Daftar Gratis</a>
+                @endguest
+                <a href="#pnl-track" class="btn btn-outline-light rounded-pill px-5 py-3 fw-bold" style="font-size:1rem;"><i class="bi bi-search me-2"></i>Lacak Paket Dulu</a>
             </div>
         </div>
     </section>

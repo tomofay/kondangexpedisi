@@ -1037,6 +1037,214 @@
                 });
             });
 
+            // ==========================================
+            // BRANCHES HANDLERS
+            // ==========================================
+            window.handleAddBranch = async () => {
+                Swal.fire({
+                    title: 'Tambah Cabang Baru',
+                    html: `<div class="text-start">
+                        <label class="small fw-bold text-muted">Nama Cabang</label>
+                        <input id="sb-name" class="form-control mb-2" placeholder="e.g. Cabang Jakarta Pusat">
+                        <label class="small fw-bold text-muted">Kode Cabang</label>
+                        <input id="sb-code" class="form-control mb-2" placeholder="e.g. JKT-PUS">
+                        <label class="small fw-bold text-muted">Kota</label>
+                        <input id="sb-city" class="form-control mb-2" placeholder="e.g. Jakarta">
+                        <label class="small fw-bold text-muted">Alamat</label>
+                        <input id="sb-addr" class="form-control mb-2" placeholder="Alamat lengkap">
+                        <label class="small fw-bold text-muted">No. Telepon</label>
+                        <input id="sb-phone" class="form-control" placeholder="021-XXXXXXX">
+                    </div>`,
+                    showCancelButton: true, confirmButtonText: 'Simpan Cabang',
+                    preConfirm: () => ({
+                        name: document.getElementById('sb-name').value,
+                        code: document.getElementById('sb-code').value,
+                        city: document.getElementById('sb-city').value,
+                        address: document.getElementById('sb-addr').value,
+                        phone: document.getElementById('sb-phone').value,
+                        is_active: true
+                    })
+                }).then(async (r) => {
+                    if (r.isConfirmed) {
+                        try {
+                            await axios.post('/branches', r.value);
+                            Swal.fire('Berhasil!', 'Cabang baru ditambahkan.', 'success');
+                            loadViewData('view-branches', 1);
+                        } catch (e) { Swal.fire('Gagal!', e.response?.data?.message || 'Gagal menyimpan.', 'error'); }
+                    }
+                });
+            };
+
+            window.handleEditBranch = async (id) => {
+                const { data: item } = await axios.get(`/branches/${id}`);
+                Swal.fire({
+                    title: 'Edit Cabang',
+                    html: `<div class="text-start">
+                        <label class="small fw-bold text-muted">Nama Cabang</label>
+                        <input id="sb-name" class="form-control mb-2" value="${item.name || ''}">
+                        <label class="small fw-bold text-muted">Kode Cabang</label>
+                        <input id="sb-code" class="form-control mb-2" value="${item.code || ''}">
+                        <label class="small fw-bold text-muted">Kota</label>
+                        <input id="sb-city" class="form-control mb-2" value="${item.city || ''}">
+                        <label class="small fw-bold text-muted">Alamat</label>
+                        <input id="sb-addr" class="form-control mb-2" value="${item.address || ''}">
+                        <label class="small fw-bold text-muted">No. Telepon</label>
+                        <input id="sb-phone" class="form-control" value="${item.phone || ''}">
+                    </div>`,
+                    showCancelButton: true, confirmButtonText: 'Update Cabang',
+                    preConfirm: () => ({
+                        name: document.getElementById('sb-name').value,
+                        code: document.getElementById('sb-code').value,
+                        city: document.getElementById('sb-city').value,
+                        address: document.getElementById('sb-addr').value,
+                        phone: document.getElementById('sb-phone').value,
+                    })
+                }).then(async (r) => {
+                    if (r.isConfirmed) {
+                        try {
+                            await axios.put(`/branches/${id}`, r.value);
+                            Swal.fire('Berhasil!', 'Cabang diperbarui.', 'success');
+                            loadViewData('view-branches', 1);
+                        } catch (e) { Swal.fire('Gagal!', 'Gagal memperbarui.', 'error'); }
+                    }
+                });
+            };
+
+            window.handleToggleBranch = (id, isActive) => {
+                Swal.fire({
+                    title: isActive ? 'Nonaktifkan Cabang?' : 'Aktifkan Cabang?',
+                    text: isActive ? 'Cabang tidak akan bisa menerima pengiriman baru.' : 'Cabang akan aktif kembali.',
+                    icon: 'warning', showCancelButton: true,
+                    confirmButtonColor: isActive ? '#DC2626' : '#10B981',
+                    confirmButtonText: isActive ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan'
+                }).then(async (r) => {
+                    if (r.isConfirmed) {
+                        try {
+                            await axios.put(`/branches/${id}`, { is_active: !isActive });
+                            Swal.fire('Berhasil!', 'Status cabang diperbarui.', 'success');
+                            loadViewData('view-branches', 1);
+                        } catch (e) { Swal.fire('Gagal!', 'Gagal mengubah status.', 'error'); }
+                    }
+                });
+            };
+
+            // ==========================================
+            // USERS HANDLERS
+            // ==========================================
+            window.handleAddUser = async () => {
+                const { data: bData } = await axios.get('/branches?per_page=100');
+                const branchOpts = `<option value="">Tidak ada cabang</option>` + bData.data.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+                Swal.fire({
+                    title: 'Tambah User Baru',
+                    html: `<div class="text-start">
+                        <label class="small fw-bold text-muted">Nama Lengkap</label>
+                        <input id="su-name" class="form-control mb-2" placeholder="Nama User">
+                        <label class="small fw-bold text-muted">Email</label>
+                        <input id="su-email" class="form-control mb-2" type="email" placeholder="email@domain.com">
+                        <label class="small fw-bold text-muted">Password</label>
+                        <input id="su-pass" class="form-control mb-2" type="password" placeholder="Min. 8 karakter">
+                        <label class="small fw-bold text-muted">No. HP</label>
+                        <input id="su-phone" class="form-control mb-2" placeholder="08XXXXXXXXXX">
+                        <label class="small fw-bold text-muted">Role</label>
+                        <select id="su-role" class="form-select mb-2">
+                            <option value="kasir">Kasir</option>
+                            <option value="manager">Manager</option>
+                            <option value="courier">Kurir</option>
+                            <option value="customer">Customer</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                        <label class="small fw-bold text-muted">Cabang</label>
+                        <select id="su-branch" class="form-select">${branchOpts}</select>
+                    </div>`,
+                    showCancelButton: true, confirmButtonText: 'Buat User',
+                    preConfirm: () => ({
+                        name: document.getElementById('su-name').value,
+                        email: document.getElementById('su-email').value,
+                        password: document.getElementById('su-pass').value,
+                        phone: document.getElementById('su-phone').value,
+                        role: document.getElementById('su-role').value,
+                        branch_id: document.getElementById('su-branch').value || null,
+                    })
+                }).then(async (r) => {
+                    if (r.isConfirmed) {
+                        try {
+                            await axios.post('/users', r.value);
+                            Swal.fire('Berhasil!', 'User baru dibuat.', 'success');
+                            loadViewData('view-users', 1);
+                        } catch (e) { Swal.fire('Gagal!', e.response?.data?.message || 'Gagal membuat user.', 'error'); }
+                    }
+                });
+            };
+
+            window.handleEditUser = async (id) => {
+                const { data: item } = await axios.get(`/users/${id}`);
+                const { data: bData } = await axios.get('/branches?per_page=100');
+                const branchOpts = `<option value="">Tidak ada cabang</option>` + bData.data.map(b => `<option value="${b.id}" ${b.id == item.branch_id ? 'selected' : ''}>${b.name}</option>`).join('');
+                Swal.fire({
+                    title: 'Edit User',
+                    html: `<div class="text-start">
+                        <label class="small fw-bold text-muted">Nama Lengkap</label>
+                        <input id="su-name" class="form-control mb-2" value="${item.name || ''}">
+                        <label class="small fw-bold text-muted">Email</label>
+                        <input id="su-email" class="form-control mb-2" type="email" value="${item.email || ''}">
+                        <label class="small fw-bold text-muted">Password Baru (kosongkan jika tidak diubah)</label>
+                        <input id="su-pass" class="form-control mb-2" type="password" placeholder="Min. 8 karakter">
+                        <label class="small fw-bold text-muted">No. HP</label>
+                        <input id="su-phone" class="form-control mb-2" value="${item.phone || ''}">
+                        <label class="small fw-bold text-muted">Role</label>
+                        <select id="su-role" class="form-select mb-2">
+                            <option value="kasir" ${item.role=='kasir'?'selected':''}>Kasir</option>
+                            <option value="manager" ${item.role=='manager'?'selected':''}>Manager</option>
+                            <option value="courier" ${item.role=='courier'?'selected':''}>Kurir</option>
+                            <option value="customer" ${item.role=='customer'?'selected':''}>Customer</option>
+                            <option value="admin" ${item.role=='admin'?'selected':''}>Admin</option>
+                        </select>
+                        <label class="small fw-bold text-muted">Status</label>
+                        <select id="su-active" class="form-select mb-2">
+                            <option value="1" ${item.is_active?'selected':''}>Aktif</option>
+                            <option value="0" ${!item.is_active?'selected':''}>Nonaktif</option>
+                        </select>
+                        <label class="small fw-bold text-muted">Cabang</label>
+                        <select id="su-branch" class="form-select">${branchOpts}</select>
+                    </div>`,
+                    showCancelButton: true, confirmButtonText: 'Update User',
+                    preConfirm: () => ({
+                        name: document.getElementById('su-name').value,
+                        email: document.getElementById('su-email').value,
+                        password: document.getElementById('su-pass').value || null,
+                        phone: document.getElementById('su-phone').value,
+                        role: document.getElementById('su-role').value,
+                        is_active: document.getElementById('su-active').value == '1',
+                        branch_id: document.getElementById('su-branch').value || null,
+                    })
+                }).then(async (r) => {
+                    if (r.isConfirmed) {
+                        try {
+                            await axios.put(`/users/${id}`, r.value);
+                            Swal.fire('Berhasil!', 'Data user diperbarui.', 'success');
+                            loadViewData('view-users', 1);
+                        } catch (e) { Swal.fire('Gagal!', e.response?.data?.message || 'Gagal memperbarui.', 'error'); }
+                    }
+                });
+            };
+
+            // Load shipment statuses dynamically to avoid hardcoded IDs
+            const loadShipmentStatuses = async () => {
+                try {
+                    const { data } = await axios.get('/shipment-statuses');
+                    const sel = document.getElementById('filter-shipment-status');
+                    if (sel && data.data) {
+                        data.data.forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s.id;
+                            opt.textContent = s.name;
+                            sel.appendChild(opt);
+                        });
+                    }
+                } catch (e) { console.warn('Could not load shipment statuses', e); }
+            };
+
+            loadShipmentStatuses();
             loadOverviewData();
         });
     </script>

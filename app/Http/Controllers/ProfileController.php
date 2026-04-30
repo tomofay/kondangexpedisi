@@ -34,6 +34,16 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        // Sync with customer profile if applicable
+        if ($request->user()->role === 'customer' && $request->user()->customer) {
+            $request->user()->customer->update([
+                'name' => $request->user()->name,
+                'email' => $request->user()->email,
+                'phone' => $request->user()->phone,
+                'address' => $request->user()->address,
+            ]);
+        }
+
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
 

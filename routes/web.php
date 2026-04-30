@@ -50,8 +50,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::post('/payments/{payment}/midtrans/snap-token', [MidtransPaymentController::class, 'createSnapToken'])
-        ->middleware('role:kasir,manager')
+    Route::post('/payments/{shipment}/midtrans/snap-token', [MidtransPaymentController::class, 'createSnapToken'])
+        ->middleware('role:kasir,manager,customer')
         ->name('payments.midtrans.snap-token');
 
     Route::middleware('role:admin,kasir,manager,courier')->group(function () {

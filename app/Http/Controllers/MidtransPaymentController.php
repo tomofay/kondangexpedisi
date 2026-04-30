@@ -3,31 +3,39 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
+use App\Models\Shipment;
 use App\Services\MidtransService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MidtransPaymentController extends Controller
 {
-    public function createSnapToken(Request $request, Payment $payment, MidtransService $midtransService): JsonResponse
+    public function createSnapToken(Request $request, Shipment $shipment, MidtransService $midtransService): JsonResponse
     {
-        $this->authorize('update', $payment);
+        $this->authorize('view', $shipment);
 
-        $payment->loadMissing('shipment');
+        // Cari payment pending atau buat baru jika belum ada
+        $payment = $shipment->payments()
+            ->whereIn('status', ['pending', 'unpaid'])
+            ->first();
 
-        if (! $payment->shipment) {
+        if (!$payment) {
+            $payment = $shipment->payments()->create([
+                'customer_id' => $shipment->customer_id,
+                'amount' => $shipment->total_amount,
+                'status' => 'pending',
+                'method' => 'midtrans',
+                'notes' => 'Payment dibuat otomatis via Snap Token request.',
+            ]);
+        }
+
+        if ($payment->status === 'settlement' || $payment->status === 'paid') {
             return response()->json([
-                'message' => 'Shipment untuk payment ini tidak ditemukan.',
+                'message' => 'Shipment ini sudah lunas.',
             ], 422);
         }
 
-        if ($payment->status === 'settlement') {
-            return response()->json([
-                'message' => 'Payment ini sudah settlement.',
-            ], 422);
-        }
-
-        $result = $midtransService->createSnapTransaction($payment, $payment->shipment);
+        $result = $midtransService->createSnapTransaction($payment, $shipment);
 
         $payment->update([
             'method' => 'midtrans',

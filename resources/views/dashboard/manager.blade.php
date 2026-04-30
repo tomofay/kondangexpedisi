@@ -239,5 +239,117 @@
                 </div>
             </div>
         </div>
+
+        {{-- Tren & Approval --}}
+        <div class="row g-4 mt-2">
+            {{-- Trend Chart --}}
+            <div class="col-lg-7">
+                <div class="card-pro p-4 h-100">
+                    <h5 class="fw-bold text-dark mb-4 d-flex align-items-center gap-2">
+                        <div class="stat-icon-wrapper" style="width:38px;height:38px;background:#EEF2FF;color:#4F46E5;font-size:1rem;">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                        Tren Shipment 7 Hari Terakhir
+                    </h5>
+                    <div style="height:250px;">
+                        <canvas id="mgr-trend-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Pending Approvals --}}
+            <div class="col-lg-5">
+                <div class="card-pro p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                            <div class="stat-icon-wrapper" style="width:38px;height:38px;background:#FFFBEB;color:#D97706;font-size:1rem;">
+                                <i class="bi bi-layers-fill"></i>
+                            </div>
+                            Approval Menunggu
+                        </h5>
+                        <a href="{{ route('approvals.index') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">Lihat Semua</a>
+                    </div>
+                    <div id="mgr-approvals-list" class="d-flex flex-column gap-2">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-warning"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load dashboard data for the trend chart
+            try {
+                const { data } = await axios.get('/dashboard/data');
+                const trend = data?.financial_control?.settlement_trend_daily || [];
+                const ctx = document.getElementById('mgr-trend-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: trend.map(i => i.period),
+                        datasets: [{
+                            label: 'Revenue (Rp)',
+                            data: trend.map(i => i.amount),
+                            borderColor: '#4F46E5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                            fill: true, tension: 0.4, pointBackgroundColor: '#4F46E5'
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { ticks: { callback: v => 'Rp' + new Intl.NumberFormat('id-ID').format(v) } } }
+                    }
+                });
+            } catch (e) { console.warn('Chart load failed', e); }
+
+            // Load pending approvals
+            try {
+                const { data } = await axios.get('/approvals?status=pending&per_page=5');
+                const list = document.getElementById('mgr-approvals-list');
+                const items = data?.data?.data || [];
+                list.innerHTML = items.length === 0
+                    ? '<div class="text-center text-muted py-3 small fw-bold">Tidak ada approval pending. ✅</div>'
+                    : items.map(item => `
+                        <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border" style="background:#FAFAFA;">
+                            <div style="max-width:65%;">
+                                <div class="fw-bold small text-dark text-truncate">${item.title}</div>
+                                <div style="font-size:0.7rem;" class="text-muted text-uppercase">${item.task_type?.replace(/_/g,' ')}</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm rounded-pill fw-bold" style="background:#ECFDF5;color:#059669;font-size:0.7rem;" onclick="handleMgrApprove(${item.id})">✓ Setuju</button>
+                                <button class="btn btn-sm rounded-pill fw-bold" style="background:#FEF2F2;color:#DC2626;font-size:0.7rem;" onclick="handleMgrReject(${item.id})">✗ Tolak</button>
+                            </div>
+                        </div>
+                    `).join('');
+            } catch (e) {
+                document.getElementById('mgr-approvals-list').innerHTML = '<div class="text-danger small text-center py-3">Gagal memuat approval.</div>';
+            }
+        });
+
+        window.handleMgrApprove = (id) => {
+            Swal.fire({ title: 'Setujui?', input: 'text', inputPlaceholder: 'Catatan (opsional)', icon: 'question', showCancelButton: true, confirmButtonColor: '#10B981', confirmButtonText: 'Ya, Approve' })
+            .then(async r => {
+                if (r.isConfirmed) {
+                    try { await axios.post(`/approvals/tasks/${id}/approve`, { note: r.value }); Swal.fire('Berhasil!', 'Disetujui.', 'success').then(() => location.reload()); }
+                    catch (e) { Swal.fire('Gagal!', e.response?.data?.message || 'Error.', 'error'); }
+                }
+            });
+        };
+
+        window.handleMgrReject = (id) => {
+            Swal.fire({ title: 'Tolak?', input: 'text', inputAttributes: { required: true }, icon: 'warning', showCancelButton: true, confirmButtonColor: '#DC2626', confirmButtonText: 'Tolak' })
+            .then(async r => {
+                if (r.isConfirmed && r.value) {
+                    try { await axios.post(`/approvals/tasks/${id}/reject`, { reason: r.value }); Swal.fire('Berhasil!', 'Ditolak.', 'success').then(() => location.reload()); }
+                    catch (e) { Swal.fire('Gagal!', 'Error.', 'error'); }
+                }
+            });
+        };
+    </script>
 </x-app-layout>
+

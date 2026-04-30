@@ -370,7 +370,8 @@ class ShipmentController extends Controller
             ]);
         }
 
-        if (! $supportsDestinationBranch) {
+        // Check if destination branch is provided and valid
+        if (array_key_exists('destination_branch_id', $validated) && empty($validated['destination_branch_id'])) {
             unset($validated['destination_branch_id']);
         }
 
@@ -469,17 +470,15 @@ class ShipmentController extends Controller
             'total_amount',
             'estimated_delivery_at',
             'delivered_at',
-            'notes',
-        ])));
-
+        // Persist changes
         $shipment->update($validated);
-
+        $freshShipment = $shipment->fresh();
         $auditLogService->record(
             'shipment.update',
             $shipment,
             $request->user(),
             $before,
-            $shipment->fresh()->only([
+            $freshShipment->only([
                 'destination_branch_id',
                 'courier_id',
                 'vehicle_id',

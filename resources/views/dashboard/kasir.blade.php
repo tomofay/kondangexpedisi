@@ -238,5 +238,114 @@
                 </div>
             </div>
         </div>
+
+        {{-- Operational Tables --}}
+        <div class="row g-4 mt-2">
+            {{-- Today's Shipments --}}
+            <div class="col-12">
+                <div class="card-pro p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                            <div class="stat-icon-wrapper" style="width:38px;height:38px;background:#EBF3FF;color:var(--primary);font-size:1rem;">
+                                <i class="bi bi-box-seam-fill"></i>
+                            </div>
+                            Kiriman Masuk Hari Ini
+                        </h5>
+                        <input type="text" id="kasir-search" class="form-control form-control-sm border-0 shadow-sm rounded-pill px-3" placeholder="Cari resi atau nama..." style="background:#F1F5F9;font-weight:700;width:220px;" onkeyup="loadKasirShipments()">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr class="text-muted small fw-bold text-uppercase">
+                                    <th>Resi</th><th>Pengirim → Penerima</th><th>Layanan</th><th>Total</th><th>Status Bayar</th><th class="text-end">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kasir-shipments-body">
+                                <tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Pending Payments --}}
+            <div class="col-12">
+                <div class="card-pro p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                            <div class="stat-icon-wrapper" style="width:38px;height:38px;background:#FFFBEB;color:#F59E0B;font-size:1rem;">
+                                <i class="bi bi-hourglass-split"></i>
+                            </div>
+                            Pembayaran Menunggu Konfirmasi
+                        </h5>
+                        <a href="{{ route('payments.index') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">Lihat Semua</a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr class="text-muted small fw-bold text-uppercase">
+                                    <th>#ID</th><th>Resi Terkait</th><th>Metode</th><th>Jumlah</th><th class="text-end">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kasir-payments-body">
+                                <tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-warning"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        const loadKasirShipments = async () => {
+            const search = document.getElementById('kasir-search')?.value || '';
+            const tbody = document.getElementById('kasir-shipments-body');
+            try {
+                const { data } = await axios.get(`/shipments?per_page=10&search=${search}&sort_by=created_at&sort_dir=desc`);
+                tbody.innerHTML = data.data.length === 0
+                    ? '<tr><td colspan="6" class="text-center py-4 text-muted">Belum ada kiriman hari ini.</td></tr>'
+                    : data.data.map(item => {
+                        const payBg = item.payment_status === 'paid' || item.payment_status === 'settlement' ? '#ECFDF5' : (item.payment_status === 'pending' ? '#FFFBEB' : '#FEF2F2');
+                        const payColor = item.payment_status === 'paid' || item.payment_status === 'settlement' ? '#059669' : (item.payment_status === 'pending' ? '#D97706' : '#DC2626');
+                        return `<tr>
+                            <td><div class="fw-bold text-primary small">${item.tracking_number}</div><div style="font-size:0.7rem" class="text-muted">${new Date(item.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</div></td>
+                            <td><div class="small fw-bold">${item.sender_name}</div><div style="font-size:0.75rem" class="text-muted">→ ${item.recipient_name}</div></td>
+                            <td><span class="badge bg-light text-dark border text-uppercase" style="font-size:0.65rem;">${item.service_type}</span></td>
+                            <td class="fw-bold">Rp${new Intl.NumberFormat('id-ID').format(item.total_amount)}</td>
+                            <td><span class="badge rounded-pill fw-bold" style="background:${payBg};color:${payColor};font-size:0.7rem;">${item.payment_status?.toUpperCase()}</span></td>
+                            <td class="text-end"><span class="badge bg-primary-light text-primary" style="font-size:0.7rem;">${item.status?.name || '-'}</span></td>
+                        </tr>`;
+                    }).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Gagal memuat data.</td></tr>';
+            }
+        };
+
+        const loadKasirPayments = async () => {
+            const tbody = document.getElementById('kasir-payments-body');
+            try {
+                const { data } = await axios.get('/payments?status=pending&per_page=10');
+                tbody.innerHTML = data.data.length === 0
+                    ? '<tr><td colspan="5" class="text-center py-4 text-muted">Tidak ada pembayaran pending.</td></tr>'
+                    : data.data.map(item => `<tr>
+                        <td class="text-muted small">#${item.id}</td>
+                        <td><div class="fw-bold small">${item.shipment?.tracking_number || '-'}</div><div style="font-size:0.7rem" class="text-muted">${item.reference_id || ''}</div></td>
+                        <td class="small fw-bold text-uppercase">${item.method || '-'}</td>
+                        <td class="fw-bold text-primary">Rp${new Intl.NumberFormat('id-ID').format(item.amount)}</td>
+                        <td class="text-end"><a href="{{ route('payments.index') }}" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold" style="font-size:0.75rem;">Proses</a></td>
+                    </tr>`).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Gagal memuat data.</td></tr>';
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadKasirShipments();
+            loadKasirPayments();
+        });
+    </script>
 </x-app-layout>
+

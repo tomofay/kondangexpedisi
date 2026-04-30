@@ -207,7 +207,7 @@
             <a href="/" class="brand-logo">KONDANG<span>EKSPEDISI</span></a>
             
             <h2 class="login-title">Selamat Datang Kembali</h2>
-            <p class="login-subtitle">Masuk ke panel manajemen internal Anda.</p>
+            <p class="login-subtitle">Masuk ke akun Kondang Ekspedisi Anda.</p>
 
             @if (session('status'))
                 <div class="alert alert-success alert-custom animate__animated animate__headShake">
@@ -251,15 +251,13 @@
                 </div>
 
                 <button type="submit" class="btn-login">
-                    MASUK KE DASHBOARD <i class="bi bi-arrow-right-short fs-4"></i>
+                    MASUK SEKARANG <i class="bi bi-arrow-right-short fs-4"></i>
                 </button>
             </form>
 
-            <div class="mt-5 pt-4 border-top">
-                <div class="d-flex align-items-start gap-3">
-                    <div class="text-primary fs-4"><i class="bi bi-info-circle-fill"></i></div>
-                    <p class="small text-muted mb-0">Hanya staf berwenang yang dapat mengakses area ini. Jika Anda pelanggan, silakan gunakan aplikasi mobile untuk melacak paket.</p>
-                </div>
+            <div class="mt-5 pt-4 border-top text-center">
+                <p class="small text-muted mb-0">Belum memiliki akun pelanggan?</p>
+                <a href="{{ route('register') }}" class="text-primary fw-bold text-decoration-none">Daftar Gratis Sekarang</a>
             </div>
         </div>
     </div>

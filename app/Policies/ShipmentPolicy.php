@@ -33,6 +33,11 @@ class ShipmentPolicy
             return (int) $shipment->branch_id === (int) $user->branch_id;
         }
 
+        // Customer hanya bisa lihat shipment miliknya sendiri
+        if ($user->role === 'customer') {
+            return (int) $shipment->customer_id === (int) $user->customer?->id;
+        }
+
         return false;
     }
 

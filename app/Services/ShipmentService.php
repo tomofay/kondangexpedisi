@@ -738,6 +738,22 @@ class ShipmentService
             'Status payment disinkronkan.'
         );
 
+        // Auto-transition status shipment jika dibayar
+        if ($mappedStatus === 'paid' && $shipment->status?->code === 'pending') {
+            try {
+                $this->transitionStatus(
+                    $shipment,
+                    'in_transit',
+                    null,
+                    $shipment->branch?->name ?? 'Sistem',
+                    'Shipment otomatis diverifikasi karena pembayaran berhasil.'
+                );
+            } catch (\Exception $e) {
+                // Silently fail transition if business rules block it, but log it
+                \Illuminate\Support\Facades\Log::warning("Auto-transition failed for shipment {$shipment->tracking_number}: " . $e->getMessage());
+            }
+        }
+
         if (($before['payment_status'] ?? null) !== 'failed' && $mappedStatus === 'failed') {
             $this->notificationService->notifyShipmentCustomer(
                 $shipment->fresh(['customer.user']),

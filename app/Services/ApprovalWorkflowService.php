@@ -323,6 +323,7 @@ class ApprovalWorkflowService
                 'payment_manual_status_approval' => $this->applyPaymentManualStatusApproval($task, $approver, $note),
                 'approve_rate_card' => $this->applyRateCardTaskApproval($task, $approver, $note),
                 'kasir_edit_approval' => $this->applyKasirEditApproval($task, $approver, $note),
+                'shipment_pricing_override_approval' => $this->applyShipmentPricingOverrideApproval($task, $approver, $note),
                 default => throw ValidationException::withMessages([
                     'task_type' => 'Task approval sensitif tidak dikenali ('.$task->task_type.').',
                 ]),
@@ -538,6 +539,17 @@ class ApprovalWorkflowService
         );
 
         return $model->fresh();
+    }
+
+    private function applyShipmentPricingOverrideApproval(AdminTask $task, User $approver, ?string $note): Shipment
+    {
+        $shipment = Shipment::query()->findOrFail((int) ($task->action_data['shipment_id'] ?? 0));
+
+        return $this->shipmentService->approvePricingOverrideRequest(
+            $shipment,
+            $approver,
+            $note
+        );
     }
 
     private function upsertAdminTask(string $taskType, string $title, User $actor, string $priority, array $actionData, string $notes): AdminTask

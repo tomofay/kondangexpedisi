@@ -188,6 +188,11 @@ class OperationalIssueService
             'manual_override_at' => now(),
         ])->save();
 
+        // Sync any pending payment amount
+        $shipment->payments()
+            ->whereIn('status', ['pending', 'unpaid'])
+            ->update(['amount' => $attributes['total_amount']]);
+
         $this->auditLogService->record(
             'shipment.manual_override',
             $shipment,

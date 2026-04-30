@@ -57,16 +57,7 @@
         const payButton = document.getElementById('pay-button');
         payButton.onclick = function() {
             // Fetch snap token from server
-            @php
-                $payment = $shipment->payments()->whereIn('status', ['pending', 'unpaid'])->first() 
-                           ?? $shipment->payments()->create([
-                               'customer_id' => $shipment->customer_id,
-                               'amount' => $shipment->total_amount,
-                               'status' => 'pending',
-                           ]);
-            @endphp
-
-            fetch("{{ route('payments.midtrans.snap-token', $payment) }}", {
+            fetch("{{ route('payments.midtrans.snap-token', $shipment) }}", {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',

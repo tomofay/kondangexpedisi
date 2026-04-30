@@ -91,51 +91,9 @@ class CustomerPortalController extends Controller
         ]);
 
         try {
-            $shipment = DB::transaction(function () use ($customer, $validated, $shipmentService) {
-                // Calculate final pricing
-                $pricing = $shipmentService->calculateTotalAmount($validated);
-
-                $statusId = ShipmentStatus::query()->where('code', 'pending')->value('id');
-
-                $shipment = Shipment::query()->create([
-                    'tracking_number' => $shipmentService->generateTrackingNumber($validated['branch_id']),
-                    'customer_id' => $customer->id,
-                    'branch_id' => $validated['branch_id'],
-                    'destination_branch_id' => $validated['destination_branch_id'],
-                    'status_id' => $statusId,
-                    'sender_name' => $validated['sender_name'],
-                    'sender_phone' => $validated['sender_phone'],
-                    'sender_address' => $validated['sender_address'],
-                    'recipient_name' => $validated['recipient_name'],
-                    'recipient_phone' => $validated['recipient_phone'],
-                    'recipient_address' => $validated['recipient_address'],
-                    'service_type' => $validated['service_type'],
-                    'total_weight_kg' => $validated['total_weight_kg'],
-                    'subtotal_amount' => $pricing['subtotal_amount'],
-                    'insurance_amount' => $pricing['insurance_amount'],
-                    'admin_fee' => $pricing['admin_fee'],
-                    'total_amount' => $pricing['total_amount'],
-                    'auto_subtotal_amount' => $pricing['subtotal_amount'],
-                    'auto_insurance_amount' => $pricing['insurance_amount'],
-                    'auto_admin_fee' => $pricing['admin_fee'],
-                    'auto_total_amount' => $pricing['total_amount'],
-                    'payment_status' => 'pending',
-                    'pricing_mode' => $pricing['calculation_mode'] === 'fallback_estimate' ? 'manual' : 'auto',
-                    'pricing_approval_status' => $pricing['requires_manual_approval'] ? 'pending' : 'not_required',
-                    'notes' => $validated['notes'],
-                    'current_status_at' => now(),
-                ]);
-
-                // Initial tracking
-                $shipment->trackings()->create([
-                    'status_id' => $statusId,
-                    'location' => Branch::query()->find($validated['branch_id'])->name,
-                    'notes' => 'Order dibuat oleh customer via mobile portal.',
-                    'event_at' => now(),
-                ]);
-
-                return $shipment;
-            });
+            $shipment = $shipmentService->createShipment(array_merge($validated, [
+                'customer_id' => $customer->id,
+            ]), $request->user());
 
             return redirect()->route('customer.shipments.track', $shipment)
                 ->with('success', 'Pemesanan berhasil dibuat! Silakan lakukan pembayaran.');
