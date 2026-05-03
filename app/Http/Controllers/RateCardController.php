@@ -15,6 +15,7 @@ class RateCardController extends Controller
     public function index(Request $request)
     {
         $this->authorize('viewAny', RateCard::class);
+        $actor = $request->user();
 
         $perPage = min(max((int) $request->integer('per_page', 15), 5), 100);
         $sortBy = in_array($request->input('sort_by'), ['id', 'service_type', 'base_price', 'per_kg_price', 'created_at'], true)
@@ -23,6 +24,10 @@ class RateCardController extends Controller
         $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
 
         $query = RateCard::query()->with(['originBranch', 'destinationBranch']);
+
+        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+            $query->where('origin_branch_id', $actor->branch_id);
+        }
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($q) use ($search) {
@@ -70,15 +75,14 @@ class RateCardController extends Controller
             'max_weight_kg' => ['nullable', 'numeric', 'gte:min_weight_kg'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'per_kg_price' => ['required', 'numeric', 'min:0'],
-            'insurance_fee' => ['required', 'numeric', 'min:0'],
+            'estimated_days' => ['nullable', 'string', 'max:50'],
             'is_active' => ['sometimes', 'boolean'],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         // Manager harus via approval ke admin
         if ($actor?->role === 'manager') {
-            $task = $approvalWorkflowService->requestKasirEditApproval(
-                new RateCard(),
+            $task = $approvalWorkflowService->requestRateCardCreationApproval(
                 $actor,
                 $validated,
                 $validated['reason'] ?? 'Manager mengajukan pembuatan rate card baru.'
@@ -94,15 +98,15 @@ class RateCardController extends Controller
         }
 
         // Admin langsung create
-        $rateCard = RateCard::query()->create($validated);
+        $rateCard = RateCard::query()->create(collect($validated)->except('reason')->toArray());
 
         $auditLogService->record(
             'rate_card.create',
             $rateCard,
             $actor,
             [],
-            $rateCard->fresh()->only(['origin_branch_id', 'destination_branch_id', 'service_type', 'base_price', 'per_kg_price']),
-            'Rate card baru dibuat oleh admin.'
+            $rateCard->fresh()->only(['origin_branch_id', 'destination_branch_id', 'service_type', 'base_price', 'per_kg_price', 'estimated_days']),
+            $validated['reason'] ?? 'Rate card baru dibuat oleh admin.'
         );
 
         return response()->json(['message' => 'Rate card created.', 'data' => $rateCard->load(['originBranch', 'destinationBranch'])], 201);
@@ -135,7 +139,7 @@ class RateCardController extends Controller
             'max_weight_kg' => ['nullable', 'numeric', 'gte:min_weight_kg'],
             'base_price' => ['sometimes', 'numeric', 'min:0'],
             'per_kg_price' => ['sometimes', 'numeric', 'min:0'],
-            'insurance_fee' => ['sometimes', 'numeric', 'min:0'],
+            'estimated_days' => ['sometimes', 'string', 'max:50'],
             'is_active' => ['sometimes', 'boolean'],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
@@ -178,19 +182,43 @@ class RateCardController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage. Admin only.
+     * Remove the specified resource from storage.
+     * Admin: direct delete. Manager: via approval ke admin.
      */
-    public function destroy(RateCard $rateCard, AuditLogService $auditLogService)
+    public function destroy(Request $request, RateCard $rateCard, ApprovalWorkflowService $workflowService, AuditLogService $auditLogService)
     {
         $this->authorize('delete', $rateCard);
+        $actor = $request->user();
 
+        // Manager harus via approval ke admin
+        if ($actor?->role === 'manager') {
+            $validated = $request->validate([
+                'reason' => ['required', 'string', 'max:500'],
+            ]);
+
+            $task = $workflowService->requestRateCardDeletionApproval(
+                $rateCard,
+                $actor,
+                $validated['reason']
+            );
+
+            return response()->json([
+                'message' => 'Pengajuan penghapusan rate card dikirim ke admin untuk disetujui.',
+                'data' => [
+                    'task_id' => $task->id,
+                    'task_status' => $task->status,
+                ],
+            ], 202);
+        }
+
+        // Admin langsung hapus
         $auditLogService->record(
             'rate_card.delete',
             $rateCard,
-            request()->user(),
+            $actor,
             $rateCard->only(['origin_branch_id', 'destination_branch_id', 'service_type', 'base_price']),
             [],
-            'Rate card dihapus.'
+            'Rate card dihapus oleh admin.'
         );
 
         $rateCard->delete();

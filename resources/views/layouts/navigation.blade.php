@@ -15,6 +15,32 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+
+                    @if(in_array(Auth::user()->role, ['admin', 'manager', 'kasir']))
+                        <x-nav-link :href="route('shipments.index')" :active="request()->routeIs('shipments.*')">
+                            {{ __('Shipments') }}
+                        </x-nav-link>
+                    @endif
+
+                    @if(in_array(Auth::user()->role, ['admin', 'manager']))
+                        <x-nav-link :href="route('approvals.index')" :active="request()->routeIs('approvals.*')">
+                            {{ __('Approvals') }}
+                        </x-nav-link>
+
+                        <x-nav-link :href="route('reports.summary')" :active="request()->routeIs('reports.*')">
+                            {{ __('Reports') }}
+                        </x-nav-link>
+                    @endif
+
+                    @if(Auth::user()->role === 'admin')
+                        <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
+                            {{ __('Users') }}
+                        </x-nav-link>
+                        
+                        <x-nav-link :href="route('branches.index')" :active="request()->routeIs('branches.*')">
+                            {{ __('Branches') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -70,6 +96,32 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
+
+            @if(in_array(Auth::user()->role, ['admin', 'manager', 'kasir']))
+                <x-responsive-nav-link :href="route('shipments.index')" :active="request()->routeIs('shipments.*')">
+                    {{ __('Shipments') }}
+                </x-responsive-nav-link>
+            @endif
+
+            @if(in_array(Auth::user()->role, ['admin', 'manager']))
+                <x-responsive-nav-link :href="route('approvals.index')" :active="request()->routeIs('approvals.*')">
+                    {{ __('Approvals') }}
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link :href="route('reports.summary')" :active="request()->routeIs('reports.*')">
+                    {{ __('Reports') }}
+                </x-responsive-nav-link>
+            @endif
+
+            @if(Auth::user()->role === 'admin')
+                <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
+                    {{ __('Users') }}
+                </x-responsive-nav-link>
+                
+                <x-responsive-nav-link :href="route('branches.index')" :active="request()->routeIs('branches.*')">
+                    {{ __('Branches') }}
+                </x-responsive-nav-link>
+            @endif
         </div>
 
         <!-- Responsive Settings Options -->

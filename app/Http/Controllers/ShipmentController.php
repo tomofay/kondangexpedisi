@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AdminTask;
 use App\Models\Branch;
 use App\Models\Shipment;
+use App\Models\ShipmentStatus;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\ApprovalWorkflowService;
@@ -74,7 +75,13 @@ class ShipmentController extends Controller
 
         $shipments = $query->orderBy($sortBy, $sortDir)->paginate($perPage)->appends($request->query());
 
-        return response()->json($shipments);
+        if ($request->expectsJson()) {
+            return response()->json($shipments);
+        }
+
+        $statuses = \App\Models\ShipmentStatus::all();
+
+        return view('shipments.index', compact('shipments', 'statuses'));
     }
 
     /**
@@ -220,13 +227,17 @@ class ShipmentController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Shipment $shipment)
+    public function show(Shipment $shipment, Request $request)
     {
         $this->authorize('view', $shipment);
 
-        $shipment->load(['items', 'status', 'trackings.status', 'payments']);
+        $shipment->load(['branch', 'destinationBranch', 'courier', 'status', 'items', 'payments', 'trackings.status', 'operationalProofs']);
 
-        return response()->json($shipment);
+        if ($request->expectsJson()) {
+            return response()->json($shipment);
+        }
+
+        return view('shipments.show', compact('shipment'));
     }
 
     public function label(Shipment $shipment)
@@ -237,11 +248,10 @@ class ShipmentController extends Controller
             'items',
             'status',
             'payments',
-            'branch.zone',
-            'destinationBranch.zone',
+            'branch',
+            'destinationBranch',
             'courier.branch',
             'vehicle.branch',
-            'zone',
             'customer',
         ]);
 
@@ -249,11 +259,11 @@ class ShipmentController extends Controller
         $barcode = base64_encode($generator->getBarcode($shipment->tracking_number, $generator::TYPE_CODE_128, 2, 70));
 
         $pdf = Pdf::loadView('pdf.shipment-label', [
-            'shipment' => $shipment,
-            'barcode' => $barcode,
-            'originBranch' => $shipment->branch,
-            'destinationBranch' => $shipment->destinationBranch ?? ($shipment->zone_id ? Branch::query()->where('zone_id', $shipment->zone_id)->first() : null),
-            'latestPayment' => $shipment->payments->sortByDesc('created_at')->first(),
+            'shipment'         => $shipment,
+            'barcode'          => $barcode,
+            'originBranch'     => $shipment->branch,
+            'destinationBranch'=> $shipment->destinationBranch,
+            'latestPayment'    => $shipment->payments->sortByDesc('created_at')->first(),
         ])->setPaper('a5', 'portrait');
 
         return $pdf->download('resi-'.$shipment->tracking_number.'.pdf');
@@ -364,7 +374,7 @@ class ShipmentController extends Controller
             ]);
         }
 
-        if (array_key_exists('status_id', $validated)) {
+        if (array_key_exists('status_id', $validated) && $actor?->role !== 'manager' && $actor?->role !== 'admin') {
             throw ValidationException::withMessages([
                 'status_id' => 'Status shipment hanya boleh diubah melalui prosedur transisi status.',
             ]);
@@ -420,6 +430,23 @@ class ShipmentController extends Controller
             );
         }
 
+        // Handle Status Transition if status_id changed and actor is manager/admin
+        if (array_key_exists('status_id', $validated) && (int)$validated['status_id'] !== (int)$shipment->status_id) {
+            $newStatus = ShipmentStatus::find($validated['status_id']);
+            if ($newStatus) {
+                // We use transitionStatus to ensure side effects are handled
+                $shipmentService->transitionStatus(
+                    $shipment,
+                    $newStatus->code,
+                    $actor->id,
+                    $request->input('location') ?? $shipment->branch?->name ?? 'Update Manual',
+                    $request->input('tracking_notes') ?? 'Status diperbarui secara manual melalui dashboard manager.',
+                    true, // force transition for managers/admins
+                    $validated['manual_override_reason'] ?? 'Update manual oleh manager/admin'
+                );
+            }
+        }
+
         if ($manualOverride && $manualOverrideRequiresApproval) {
             $manualAmountFields = array_intersect_key($validated, array_flip([
                 'subtotal_amount',
@@ -470,6 +497,9 @@ class ShipmentController extends Controller
             'total_amount',
             'estimated_delivery_at',
             'delivered_at',
+            'notes',
+        ])));
+
         // Persist changes
         $shipment->update($validated);
         $freshShipment = $shipment->fresh();

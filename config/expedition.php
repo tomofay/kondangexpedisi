@@ -56,24 +56,34 @@ return [
 
     'shipment_statuses' => [
         'pending',
+        'picked_up',
+        'arrived_at_origin',
+        'departed_from_origin',
         'in_transit',
+        'arrived_at_destination',
         'out_for_delivery',
         'delivered',
+        'failed_delivery',
         'cancelled',
         'returned',
     ],
 
     'shipment_status_flow' => [
         'transitions' => [
-            'pending' => ['in_transit', 'cancelled'],
-            'in_transit' => ['out_for_delivery', 'cancelled', 'returned'],
-            'out_for_delivery' => ['delivered', 'cancelled', 'returned'],
+            'pending' => ['picked_up', 'arrived_at_origin', 'cancelled'],
+            'picked_up' => ['arrived_at_origin', 'cancelled'],
+            'arrived_at_origin' => ['departed_from_origin', 'cancelled'],
+            'departed_from_origin' => ['in_transit', 'arrived_at_destination', 'cancelled'],
+            'in_transit' => ['arrived_at_destination', 'cancelled', 'returned'],
+            'arrived_at_destination' => ['out_for_delivery', 'cancelled', 'returned'],
+            'out_for_delivery' => ['delivered', 'failed_delivery', 'cancelled', 'returned'],
+            'failed_delivery' => ['out_for_delivery', 'returned', 'cancelled'],
             'delivered' => [],
             'cancelled' => [],
             'returned' => [],
         ],
         'final_statuses' => ['delivered', 'cancelled', 'returned'],
-        'override_roles' => ['admin'],
+        'override_roles' => ['admin', 'manager'],
     ],
 
     'tracking_number' => [

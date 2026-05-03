@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 class ApprovalController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
         $actor = $request->user();
 
@@ -31,7 +31,7 @@ class ApprovalController extends Controller
 
         if ($actor->role === 'manager') {
             $taskQuery->where(function ($q) use ($actor) {
-                $q->whereHas('creator', fn ($u) => $q->where('branch_id', $actor->branch_id))
+                $q->whereHas('creator', fn ($u) => $u->where('branch_id', $actor->branch_id))
                     ->orWhere('action_data->branch_id', $actor->branch_id)
                     ->orWhereRaw("JSON_EXTRACT(action_data, '$.shipment_id') IN (SELECT id FROM shipments WHERE branch_id = ?)", [$actor->branch_id]);
             });
@@ -53,10 +53,14 @@ class ApprovalController extends Controller
 
         $tasks = $taskQuery->paginate($perPage);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $tasks,
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'data' => $tasks,
+            ]);
+        }
+
+        return view('approvals.index', compact('tasks'));
     }
 
     public function approveTask(Request $request, AdminTask $task, ApprovalWorkflowService $approvalWorkflowService): JsonResponse

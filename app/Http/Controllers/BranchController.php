@@ -25,10 +25,7 @@ class BranchController extends Controller
 
         $query = Branch::query();
 
-        // Manager & Kasir hanya melihat cabangnya sendiri
-        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
-            $query->where('id', $actor->branch_id);
-        }
+        // Manager & Kasir can see all branches for lookup purposes (e.g., rate card destinations)
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($q) use ($search) {

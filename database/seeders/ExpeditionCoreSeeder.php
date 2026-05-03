@@ -97,7 +97,13 @@ class ExpeditionCoreSeeder extends Seeder
                 foreach ($serviceFactor as $serviceType => $factor) {
                     $basePrice = (int) round(14000 * $baseRouteFactor * $factor);
                     $perKgPrice = (int) round(3500 * $baseRouteFactor * ($serviceType === 'same_day' ? 1.15 : 1));
-                    $insuranceFee = (int) round(1500 * $baseRouteFactor * ($serviceType === 'economy' ? 0.9 : 1));
+                    $estDays = match($serviceType) {
+                        'same_day' => '0-1 hari',
+                        'express' => '1-2 hari',
+                        'regular' => '2-4 hari',
+                        'economy' => '4-7 hari',
+                        default => '3-5 hari'
+                    };
 
                     RateCard::query()->updateOrCreate(
                         [
@@ -110,7 +116,7 @@ class ExpeditionCoreSeeder extends Seeder
                             'max_weight_kg' => 1,
                             'base_price' => $basePrice,
                             'per_kg_price' => $perKgPrice,
-                            'insurance_fee' => $insuranceFee,
+                            'estimated_days' => $estDays,
                             'is_active' => true,
                         ]
                     );
@@ -121,11 +127,16 @@ class ExpeditionCoreSeeder extends Seeder
         // 4. Shipment Statuses
         $statuses = [
             ['code' => 'pending', 'name' => 'Menunggu Proses', 'sequence' => 1, 'is_final' => false, 'badge_color' => 'amber'],
-            ['code' => 'in_transit', 'name' => 'Dalam Perjalanan', 'sequence' => 2, 'is_final' => false, 'badge_color' => 'blue'],
-            ['code' => 'out_for_delivery', 'name' => 'Siap Diantar', 'sequence' => 3, 'is_final' => false, 'badge_color' => 'indigo'],
-            ['code' => 'delivered', 'name' => 'Terkirim', 'sequence' => 4, 'is_final' => true, 'badge_color' => 'green'],
-            ['code' => 'cancelled', 'name' => 'Dibatalkan', 'sequence' => 5, 'is_final' => true, 'badge_color' => 'red'],
-            ['code' => 'returned', 'name' => 'Dikembalikan', 'sequence' => 6, 'is_final' => true, 'badge_color' => 'orange'],
+            ['code' => 'picked_up', 'name' => 'Paket Telah Diambil', 'sequence' => 2, 'is_final' => false, 'badge_color' => 'cyan'],
+            ['code' => 'arrived_at_origin', 'name' => 'Sampai di Cabang Asal', 'sequence' => 3, 'is_final' => false, 'badge_color' => 'blue'],
+            ['code' => 'departed_from_origin', 'name' => 'Berangkat dari Cabang Asal', 'sequence' => 4, 'is_final' => false, 'badge_color' => 'indigo'],
+            ['code' => 'in_transit', 'name' => 'Dalam Perjalanan', 'sequence' => 5, 'is_final' => false, 'badge_color' => 'blue'],
+            ['code' => 'arrived_at_destination', 'name' => 'Sampai di Cabang Tujuan', 'sequence' => 6, 'is_final' => false, 'badge_color' => 'violet'],
+            ['code' => 'out_for_delivery', 'name' => 'Kurir Sedang Mengirim', 'sequence' => 7, 'is_final' => false, 'badge_color' => 'purple'],
+            ['code' => 'delivered', 'name' => 'Terkirim / Selesai', 'sequence' => 8, 'is_final' => true, 'badge_color' => 'green'],
+            ['code' => 'failed_delivery', 'name' => 'Gagal Diantar', 'sequence' => 9, 'is_final' => false, 'badge_color' => 'pink'],
+            ['code' => 'cancelled', 'name' => 'Dibatalkan', 'sequence' => 10, 'is_final' => true, 'badge_color' => 'red'],
+            ['code' => 'returned', 'name' => 'Dikembalikan', 'sequence' => 11, 'is_final' => true, 'badge_color' => 'orange'],
         ];
 
         foreach ($statuses as $status) {
@@ -192,12 +203,12 @@ class ExpeditionCoreSeeder extends Seeder
 
         // 7. Vehicles
         $vehicleRows = [
-            ['branch_code' => 'JKT-HQ', 'name' => 'Motor Kurir Jakarta 01', 'plate_number' => 'B 4101 KDX', 'type' => 'motorcycle', 'capacity_kg' => 80],
-            ['branch_code' => 'JKT-HQ', 'name' => 'Van Operasional Jakarta 01', 'plate_number' => 'B 9201 KDX', 'type' => 'van', 'capacity_kg' => 1000],
-            ['branch_code' => 'SBY-01', 'name' => 'Motor Kurir Surabaya 01', 'plate_number' => 'L 5102 KDX', 'type' => 'motorcycle', 'capacity_kg' => 90],
-            ['branch_code' => 'SBY-01', 'name' => 'Mobil Box Surabaya 01', 'plate_number' => 'L 9302 KDX', 'type' => 'truck', 'capacity_kg' => 1800],
-            ['branch_code' => 'BDG-01', 'name' => 'Motor Kurir Bandung 01', 'plate_number' => 'D 6203 KDX', 'type' => 'motorcycle', 'capacity_kg' => 85],
-            ['branch_code' => 'BDG-01', 'name' => 'Van Operasional Bandung 01', 'plate_number' => 'D 9403 KDX', 'type' => 'van', 'capacity_kg' => 950],
+            ['branch_code' => 'JKT-HQ', 'name' => 'Motor Kurir Jakarta 01', 'plate_number' => 'B 4101 KDX', 'type' => 'motorcycle'],
+            ['branch_code' => 'JKT-HQ', 'name' => 'Van Operasional Jakarta 01', 'plate_number' => 'B 9201 KDX', 'type' => 'van'],
+            ['branch_code' => 'SBY-01', 'name' => 'Motor Kurir Surabaya 01', 'plate_number' => 'L 5102 KDX', 'type' => 'motorcycle'],
+            ['branch_code' => 'SBY-01', 'name' => 'Mobil Box Surabaya 01', 'plate_number' => 'L 9302 KDX', 'type' => 'truck'],
+            ['branch_code' => 'BDG-01', 'name' => 'Motor Kurir Bandung 01', 'plate_number' => 'D 6203 KDX', 'type' => 'motorcycle'],
+            ['branch_code' => 'BDG-01', 'name' => 'Van Operasional Bandung 01', 'plate_number' => 'D 9403 KDX', 'type' => 'van'],
         ];
 
         foreach ($vehicleRows as $vehicle) {
@@ -207,7 +218,6 @@ class ExpeditionCoreSeeder extends Seeder
                     'branch_id' => $branchesByCode[$vehicle['branch_code']]->id,
                     'name' => $vehicle['name'],
                     'type' => $vehicle['type'],
-                    'capacity_kg' => $vehicle['capacity_kg'],
                     'status' => 'available',
                 ]
             );
@@ -280,35 +290,37 @@ class ExpeditionCoreSeeder extends Seeder
             $baseAmount = rand(30000, 150000);
             $tracking = sprintf('KND-%s-%03d', now()->format('Ymd'), $index + 1);
 
-            $shipment = Shipment::query()->create([
-                'tracking_number' => $tracking,
-                'customer_id' => $customer->id,
-                'branch_id' => $branch->id,
-                'destination_branch_id' => $destBranch->id,
-                'courier_id' => $courier?->id,
-                'vehicle_id' => $vehicleId,
-                'status_id' => $statusMap[$statusCode],
-                'sender_name' => $sender['name'],
-                'sender_phone' => $sender['phone'],
-                'sender_address' => $sender['address'],
-                'recipient_name' => $customer->name,
-                'recipient_phone' => $customer->phone,
-                'recipient_address' => $customer->address,
-                'service_type' => 'regular',
-                'total_weight_kg' => $weight,
-                'total_volume' => (float) rand(10, 100),
-                'subtotal_amount' => $baseAmount,
-                'insurance_amount' => 3000,
-                'admin_fee' => 2500,
-                'total_amount' => $baseAmount + 5500,
-                'payment_status' => $statusCode === 'pending' ? 'pending' : 'paid',
-                'current_status_at' => now(),
-                'estimated_delivery_at' => now()->addDays(3),
-                'delivered_at' => $statusCode === 'delivered' ? now() : null,
-                'notes' => 'Generated by seeder',
-                'processing_status' => 'ok',
-                'pricing_mode' => 'auto',
-            ]);
+            $shipment = Shipment::query()->updateOrCreate(
+                ['tracking_number' => $tracking],
+                [
+                    'customer_id' => $customer->id,
+                    'branch_id' => $branch->id,
+                    'destination_branch_id' => $destBranch->id,
+                    'courier_id' => $courier?->id,
+                    'vehicle_id' => $vehicleId,
+                    'status_id' => $statusMap[$statusCode],
+                    'sender_name' => $sender['name'],
+                    'sender_phone' => $sender['phone'],
+                    'sender_address' => $sender['address'],
+                    'recipient_name' => $customer->name,
+                    'recipient_phone' => $customer->phone,
+                    'recipient_address' => $customer->address,
+                    'service_type' => 'regular',
+                    'total_weight_kg' => $weight,
+                    'total_volume' => (float) rand(10, 100),
+                    'subtotal_amount' => $baseAmount,
+                    'insurance_amount' => 3000,
+                    'admin_fee' => 2500,
+                    'total_amount' => $baseAmount + 5500,
+                    'payment_status' => $statusCode === 'pending' ? 'pending' : 'paid',
+                    'current_status_at' => now(),
+                    'estimated_delivery_at' => now()->addDays(3),
+                    'delivered_at' => $statusCode === 'delivered' ? now() : null,
+                    'notes' => 'Generated by seeder',
+                    'processing_status' => 'ok',
+                    'pricing_mode' => 'auto',
+                ]
+            );
 
             $item = $itemCatalog[array_rand($itemCatalog)];
             ShipmentItem::query()->create([
@@ -323,21 +335,23 @@ class ExpeditionCoreSeeder extends Seeder
                 'description' => $item['description'],
             ]);
 
-            Payment::query()->create([
-                'shipment_id' => $shipment->id,
-                'customer_id' => $customer->id,
-                'processed_by' => $kasirId,
-                'method' => 'midtrans',
-                'status' => $statusCode === 'pending' ? 'pending' : 'settlement',
-                'amount' => $shipment->total_amount,
-                'midtrans_order_id' => 'ORDER-'.$tracking,
-                'midtrans_transaction_id' => (string) Str::uuid(),
-                'payment_type' => 'bank_transfer',
-                'bank_name' => 'bca',
-                'va_number' => (string) rand(1000000000, 9999999999),
-                'transaction_time' => now(),
-                'paid_at' => $statusCode === 'pending' ? null : now(),
-            ]);
+            Payment::query()->updateOrCreate(
+                ['shipment_id' => $shipment->id],
+                [
+                    'customer_id' => $customer->id,
+                    'processed_by' => $kasirId,
+                    'method' => 'midtrans',
+                    'status' => $statusCode === 'pending' ? 'pending' : 'settlement',
+                    'amount' => $shipment->total_amount,
+                    'midtrans_order_id' => 'ORDER-'.$tracking,
+                    'midtrans_transaction_id' => (string) Str::uuid(),
+                    'payment_type' => 'bank_transfer',
+                    'bank_name' => 'bca',
+                    'va_number' => (string) rand(1000000000, 9999999999),
+                    'transaction_time' => now(),
+                    'paid_at' => $statusCode === 'pending' ? null : now(),
+                ]
+            );
 
             ShipmentTracking::query()->create([
                 'shipment_id' => $shipment->id,

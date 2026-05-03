@@ -20,38 +20,32 @@ class VehicleController extends Controller
             ? $request->input('sort_by')
             : 'created_at';
         $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
+        $search = trim((string) $request->input('search', ''));
 
         $query = Vehicle::query()->with('branch');
 
-        if (in_array($actor?->role, ['kasir'], true)) {
-            $managerBranch = Branch::query()->find($actor->branch_id);
-
-            if (! $managerBranch || ! $managerBranch->is_active) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->where('branch_id', $managerBranch->id);
-            }
+        if ($actor->role !== 'admin') {
+            $query->where('branch_id', $actor->branch_id);
         }
 
-        if ($search = trim((string) $request->input('search', ''))) {
+        if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('plate_number', 'like', "%{$search}%")
-                    ->orWhere('type', 'like', "%{$search}%");
+                  ->orWhere('plate_number', 'like', "%{$search}%");
             });
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->input('type'));
         }
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
 
-        if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->integer('branch_id'));
-        }
+        $vehicles = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 
-        return response()->json(
-            $query->orderBy($sortBy, $sortDir)->paginate($perPage)->appends($request->query())
-        );
+        return response()->json($vehicles);
     }
 
     /**
@@ -67,6 +61,8 @@ class VehicleController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Vehicle::class);
+
         $validated = $request->validate([
             'branch_id' => ['required', 'exists:branches,id'],
             'name' => ['required', 'string', 'max:255'],
@@ -81,6 +77,11 @@ class VehicleController extends Controller
             'status' => ['required', 'in:available,in_use,maintenance,inactive'],
         ]);
 
+        $actor = $request->user();
+        if ($actor->role !== 'admin') {
+            $validated['branch_id'] = $actor->branch_id;
+        }
+
         $vehicle = Vehicle::query()->create($validated);
 
         return response()->json(['message' => 'Vehicle created.', 'data' => $vehicle], 201);
@@ -91,6 +92,7 @@ class VehicleController extends Controller
      */
     public function show(Vehicle $vehicle)
     {
+        $this->authorize('view', $vehicle);
         return response()->json($vehicle->load('branch', 'shipments'));
     }
 
@@ -107,14 +109,15 @@ class VehicleController extends Controller
      */
     public function update(Request $request, Vehicle $vehicle)
     {
+        $this->authorize('update', $vehicle);
+
         $validated = $request->validate([
-            'branch_id' => ['sometimes', 'exists:branches,id'],
             'name' => ['sometimes', 'string', 'max:255'],
             'plate_number' => [
                 'sometimes',
                 'string',
                 'max:30',
-                Rule::unique('vehicles', 'plate_number')->whereNull('deleted_at')->ignore($vehicle->id),
+                Rule::unique('vehicles', 'plate_number')->ignore($vehicle->id)->whereNull('deleted_at'),
             ],
             'type' => ['sometimes', 'in:motorcycle,car,van,truck'],
             'capacity_kg' => ['sometimes', 'numeric', 'min:0'],
@@ -131,6 +134,7 @@ class VehicleController extends Controller
      */
     public function destroy(Vehicle $vehicle)
     {
+        $this->authorize('delete', $vehicle);
         $vehicle->delete();
 
         return response()->json(['message' => 'Vehicle deleted.']);

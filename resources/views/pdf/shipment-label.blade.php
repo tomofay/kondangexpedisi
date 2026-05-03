@@ -197,7 +197,7 @@
                             <td>Cabang Tujuan</td>
                             <td>
                                 {{ $destinationBranch?->name ?? '-' }}<br>
-                                <span class="muted">{{ $destinationBranch?->city ?? $shipment->zone?->name ?? '-' }}</span>
+                                <span class="muted">{{ $destinationBranch?->city ?? '-' }}</span>
                             </td>
                         </tr>
                         <tr>
@@ -284,7 +284,7 @@
                     <table class="grid mini summary" cellspacing="0" cellpadding="0">
                         <tr>
                             <td>Metode</td>
-                            <td>{{ $latestPayment?->method ?? ($shipment->is_cod ? 'cod' : '-') }}</td>
+                            <td>{{ $latestPayment?->method ?? '-' }}</td>
                         </tr>
                         <tr>
                             <td>Status</td>
@@ -293,10 +293,6 @@
                         <tr>
                             <td>Nominal</td>
                             <td>{{ number_format((float) ($latestPayment?->amount ?? $shipment->total_amount), 0, ',', '.') }}</td>
-                        </tr>
-                        <tr>
-                            <td>COD</td>
-                            <td>{{ $shipment->is_cod ? number_format((float) $shipment->cod_amount, 0, ',', '.') : '-' }}</td>
                         </tr>
                         <tr>
                             <td>Catatan</td>

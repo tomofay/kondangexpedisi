@@ -719,9 +719,10 @@ class ShipmentService
         $before = $shipment->only(['payment_status']);
 
         $mappedStatus = match ($paymentStatus) {
-            'settlement' => 'paid',
+            'settlement', 'capture' => 'paid',
             'pending' => 'pending',
             'refund' => 'refunded',
+            'cancel', 'expire' => 'failed',
             default => 'failed',
         };
 
@@ -729,13 +730,24 @@ class ShipmentService
             'payment_status' => $mappedStatus,
         ]);
 
+        // If payment is cancelled, cancel the shipment too
+        if ($paymentStatus === 'cancel' && !in_array($shipment->status?->code, ['delivered', 'cancelled'], true)) {
+            $this->transitionStatus(
+                $shipment,
+                'cancelled',
+                null,
+                $shipment->branch?->name ?? 'System',
+                'Shipment dibatalkan secara otomatis karena pembayaran dibatalkan.'
+            );
+        }
+
         $this->auditLogService->record(
             'shipment.sync_payment_status',
             $shipment,
             null,
             $before,
             $shipment->fresh()->only(['payment_status']),
-            'Status payment disinkronkan.'
+            "Status payment disinkronkan: {$paymentStatus} -> {$mappedStatus}"
         );
 
         // Auto-transition status shipment jika dibayar

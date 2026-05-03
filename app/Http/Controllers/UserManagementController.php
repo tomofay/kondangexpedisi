@@ -30,9 +30,10 @@ class UserManagementController extends Controller
 
         $query = User::query()->with('branch');
 
-        // Manager hanya bisa lihat user di cabangnya
+        // Manager hanya bisa lihat user di cabangnya (kecuali customer)
         if ($actor->role === 'manager') {
-            $query->where('branch_id', $actor->branch_id);
+            $query->where('branch_id', $actor->branch_id)
+                  ->where('role', '!=', 'customer');
         }
 
         if ($search = trim((string) $request->input('search', ''))) {
@@ -67,8 +68,8 @@ class UserManagementController extends Controller
     {
         $actor = $request->user();
 
-        if ($actor?->role !== 'admin') {
-            abort(403, 'Hanya admin yang dapat membuat user baru.');
+        if (! in_array($actor?->role, ['admin', 'manager'], true)) {
+            abort(403, 'Anda tidak memiliki akses untuk membuat user baru.');
         }
 
         $validated = $request->validate([
@@ -84,6 +85,13 @@ class UserManagementController extends Controller
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string'],
         ]);
+
+        if ($actor->role === 'manager') {
+            $validated['branch_id'] = $actor->branch_id;
+            if (in_array($validated['role'], ['admin', 'customer'])) {
+                abort(403, 'Manager tidak dapat membuat user dengan role Admin atau Customer.');
+            }
+        }
 
         $validated['permissions'] = array_values(array_unique(array_filter($validated['permissions'] ?? [])));
 
@@ -121,8 +129,14 @@ class UserManagementController extends Controller
     {
         $actor = $request->user();
 
-        if ($actor?->role !== 'admin') {
-            abort(403, 'Hanya admin yang dapat mengubah data user.');
+        if (! in_array($actor?->role, ['admin', 'manager'], true)) {
+            abort(403, 'Anda tidak memiliki akses untuk mengubah data user.');
+        }
+
+        if ($actor->role === 'manager') {
+            if ((int) $user->branch_id !== (int) $actor->branch_id || $user->role === 'customer' || $user->role === 'admin') {
+                abort(403, 'Manager hanya dapat mengubah data staff di cabangnya sendiri.');
+            }
         }
 
         $validated = $request->validate([
@@ -160,8 +174,14 @@ class UserManagementController extends Controller
     {
         $actor = $request->user();
 
-        if ($actor?->role !== 'admin') {
-            abort(403, 'Hanya admin yang dapat menghapus user.');
+        if (! in_array($actor?->role, ['admin', 'manager'], true)) {
+            abort(403, 'Anda tidak memiliki akses untuk menghapus user.');
+        }
+
+        if ($actor->role === 'manager') {
+            if ((int) $user->branch_id !== (int) $actor->branch_id || $user->role === 'customer' || $user->role === 'admin') {
+                abort(403, 'Manager hanya dapat menghapus staff di cabangnya sendiri.');
+            }
         }
 
         if ((int) $actor->id === (int) $user->id) {

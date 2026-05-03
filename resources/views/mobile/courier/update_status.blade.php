@@ -1,147 +1,153 @@
-@extends('layouts.mobile')
+@extends('mobile.base')
 
 @section('content')
-<div class="space-y-6 pb-20" x-data="updateStatus()">
-    <!-- Header -->
+<div class="space-y-8 animate-slide-up pb-32" x-data="updateStatusForm()">
+    <!-- Header with Back Button -->
     <div class="flex items-center gap-4">
-        <a href="{{ route('courier.tasks') }}" class="p-2 -ml-2 rounded-full active:bg-slate-200 transition-colors">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        <a href="{{ route('courier.tasks') }}" class="w-12 h-12 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center shadow-sm text-slate-400">
+            <i class="bi bi-chevron-left fs-5"></i>
         </a>
-        <h1 class="text-xl font-bold">Update Status</h1>
+        <h2 class="text-xl font-extrabold tracking-tight">Update Status</h2>
     </div>
 
-    <!-- Shipment Brief -->
-    <div class="bg-indigo-600 rounded-3xl p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
-        <div class="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">Tracking Number</div>
-        <div class="text-2xl font-black mb-4">{{ $shipment->tracking_number }}</div>
-        <div class="flex items-center gap-2 text-xs font-bold bg-white/20 w-fit px-3 py-1 rounded-full">
-            <div class="w-2 h-2 rounded-full bg-white animate-pulse"></div>
-            {{ $shipment->status->name }}
+    <!-- Shipment Info Summary -->
+    <div class="bg-primary-600 rounded-4xl p-8 text-white relative overflow-hidden shadow-2xl shadow-primary-100 dark:shadow-none">
+        <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+        <div class="relative z-10 space-y-2">
+            <p class="text-[10px] font-black text-primary-200 uppercase tracking-widest">Tracking Number</p>
+            <h3 class="text-3xl font-black uppercase italic">{{ $shipment->tracking_number }}</h3>
+            <p class="text-sm font-bold text-primary-100">{{ $shipment->recipient_name }} • {{ $shipment->service_type }}</p>
         </div>
     </div>
 
-    <form action="{{ route('courier.shipments.update', $shipment) }}" method="POST" enctype="multipart/form-data" class="space-y-8">
+    <form action="{{ route('courier.shipments.update', $shipment) }}" method="POST" enctype="multipart/form-data" class="space-y-10">
         @csrf
 
-        <!-- Barcode Scanner Trigger -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Verifikasi Barcode</h2>
-            <button type="button" @click="startScanner()" class="w-full py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 dark:text-slate-300 active:scale-95 transition-all">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 17h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-                Scan Barcode Label
+        <!-- Barcode Scan -->
+        <div class="space-y-6">
+            <div class="flex items-center gap-2 px-1">
+                <div class="w-1 h-6 bg-primary-600 rounded-full"></div>
+                <h3 class="font-extrabold text-lg uppercase tracking-tight">Verifikasi Paket</h3>
+            </div>
+            
+            <button type="button" @click="startScanner()" class="w-full h-20 bg-white dark:bg-slate-900 rounded-3xl premium-shadow flex items-center justify-center gap-4 font-black text-sm uppercase tracking-widest text-slate-600 dark:text-slate-300 active:scale-95 transition-all border border-slate-100 dark:border-slate-800">
+                <i class="bi bi-qr-code-scan fs-4 text-primary-600"></i>
+                Scan Barcode
             </button>
-            <div id="reader" x-show="showScanner" class="overflow-hidden rounded-3xl border-4 border-indigo-500 bg-black"></div>
+            <div id="reader" x-show="showScanner" class="overflow-hidden rounded-4xl border-4 border-primary-600 bg-black aspect-square mt-4"></div>
         </div>
 
         <!-- Status Selection -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Pilih Status Baru</h2>
-            <div class="grid grid-cols-1 gap-2">
+        <div class="space-y-6">
+            <div class="flex items-center gap-2 px-1">
+                <div class="w-1 h-6 bg-primary-600 rounded-full"></div>
+                <h3 class="font-extrabold text-lg uppercase tracking-tight">Status Baru</h3>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
                 @php
-                    $nextStatuses = [
-                        'in_transit' => 'Dalam Perjalanan',
-                        'out_for_delivery' => 'Kurir Menuju Lokasi',
-                        'delivered' => 'Sampai Tujuan (Selesai)',
-                        'failed_delivery' => 'Gagal Kirim (Coba Lagi)',
+                    $statusOptions = [
+                        ['code' => 'pickup', 'name' => 'Pick Up', 'icon' => 'bi-box-seam', 'color' => 'blue'],
+                        ['code' => 'in_transit', 'name' => 'In Transit', 'icon' => 'bi-truck', 'color' => 'indigo'],
+                        ['code' => 'out_for_delivery', 'name' => 'Delivery', 'icon' => 'bi-bicycle', 'color' => 'emerald'],
+                        ['code' => 'delivered', 'name' => 'Selesai', 'icon' => 'bi-check2-circle', 'color' => 'emerald'],
+                        ['code' => 'failed', 'name' => 'Gagal', 'icon' => 'bi-exclamation-triangle', 'color' => 'red'],
+                        ['code' => 'returned', 'name' => 'Return', 'icon' => 'bi-arrow-left-right', 'color' => 'orange'],
                     ];
                 @endphp
-                @foreach($nextStatuses as $code => $name)
-                    <label class="relative block group">
-                        <input type="radio" name="status_code" value="{{ $code }}" x-model="form.status_code" class="peer hidden">
-                        <div class="p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 transition-all font-bold flex items-center justify-between">
-                            <span class="text-sm">{{ $name }}</span>
-                            <div class="w-5 h-5 rounded-full border-2 border-slate-200 peer-checked:border-indigo-600 flex items-center justify-center">
-                                <div x-show="form.status_code === '{{ $code }}'" class="w-2.5 h-2.5 rounded-full bg-indigo-600"></div>
+
+                @foreach($statusOptions as $opt)
+                    <label class="relative group cursor-pointer">
+                        <input type="radio" name="status_code" value="{{ $opt['code'] }}" x-model="form.status_code" class="peer hidden">
+                        <div class="bg-white dark:bg-slate-900 border-2 border-transparent peer-checked:border-primary-600 p-6 rounded-4xl flex flex-col items-center gap-3 premium-shadow transition-all group-active:scale-95 h-full">
+                            <div class="w-12 h-12 bg-slate-50 dark:bg-slate-800 text-slate-400 peer-checked:text-primary-600 rounded-2xl flex items-center justify-center transition-colors">
+                                <i class="bi {{ $opt['icon'] }} fs-4"></i>
                             </div>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 peer-checked:text-primary-600">{{ $opt['name'] }}</span>
+                        </div>
+                        <div class="absolute top-4 right-4 opacity-0 peer-checked:opacity-100 transition-opacity">
+                            <i class="bi bi-check-circle-fill text-primary-600"></i>
                         </div>
                     </label>
                 @endforeach
             </div>
         </div>
 
-        <!-- Proof Photo -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Foto Bukti (Opsional)</h2>
-            <div class="relative group">
-                <input type="file" name="proof_photo" accept="image/*" capture="environment" @change="previewImage($event)" class="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer">
-                <div class="w-full aspect-video rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-3 overflow-hidden">
-                    <template x-if="!imagePreview">
-                        <div class="text-center">
-                            <div class="p-4 bg-white dark:bg-slate-800 rounded-full shadow-sm mx-auto w-fit mb-3">
-                                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            </div>
-                            <span class="text-xs font-bold text-slate-500">Ambil Foto / Upload</span>
+        <!-- Evidence & Details -->
+        <div class="space-y-6">
+            <div class="flex items-center gap-2 px-1">
+                <div class="w-1 h-6 bg-primary-600 rounded-full"></div>
+                <h3 class="font-extrabold text-lg uppercase tracking-tight">Bukti Operasional</h3>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-4xl premium-shadow border border-slate-100 dark:border-slate-800 p-8 space-y-6">
+                <!-- Photo Upload -->
+                <div class="space-y-4">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Foto Bukti (Opsional)</label>
+                    <div class="relative group">
+                        <input type="file" name="proof_photo" accept="image/*" capture="environment" @change="previewImage($event)" class="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer">
+                        <div class="w-full aspect-video bg-slate-50 dark:bg-slate-800 rounded-3xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-700 transition-all overflow-hidden group-hover:bg-slate-100 dark:group-hover:bg-slate-800/80">
+                            <template x-if="!imagePreview">
+                                <div class="text-center space-y-2">
+                                    <i class="bi bi-camera fs-1 text-slate-300"></i>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ambil Foto</p>
+                                </div>
+                            </template>
+                            <template x-if="imagePreview">
+                                <img :src="imagePreview" class="w-full h-full object-cover">
+                            </template>
                         </div>
-                    </template>
-                    <template x-if="imagePreview">
-                        <img :src="imagePreview" class="w-full h-full object-cover">
-                    </template>
+                    </div>
+                </div>
+
+                <!-- Location & Notes -->
+                <div class="space-y-4">
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-5 flex items-center pointer-events-none text-slate-400">
+                            <i class="bi bi-geo-alt"></i>
+                        </div>
+                        <input type="text" name="location" placeholder="Lokasi Terkini" class="w-full bg-slate-50 dark:bg-slate-800 border-none h-14 pl-12 pr-6 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-primary-600">
+                    </div>
+                    <textarea name="notes" placeholder="Catatan tambahan (contoh: diterima oleh satpam)" rows="3" class="w-full bg-slate-50 dark:bg-slate-800 border-none p-6 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-primary-600"></textarea>
                 </div>
             </div>
         </div>
 
-        <!-- Notes & Location -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Detail Tambahan</h2>
-            <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-5 shadow-sm space-y-4">
-                <input type="text" name="location" placeholder="Lokasi Saat Ini (cth: Bandung Hub)" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500">
-                <textarea name="notes" placeholder="Catatan Tambahan..." rows="3" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500"></textarea>
-            </div>
+        <!-- Sticky Submit -->
+        <div class="fixed bottom-0 left-0 right-0 p-6 glass border-t border-slate-100 dark:border-slate-800 z-50 rounded-t-4xl">
+            <button type="submit" class="w-full bg-primary-600 text-white font-black h-16 rounded-3xl shadow-2xl shadow-primary-200 dark:shadow-none active:scale-95 transition-all text-sm uppercase tracking-widest">
+                Update Status Paket
+            </button>
         </div>
-
-        <!-- GPS Data -->
-        <input type="hidden" name="gps_lat" x-model="gps.lat">
-        <input type="hidden" name="gps_lng" x-model="gps.lng">
-
-        <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-indigo-100 dark:shadow-none active:scale-95 transition-all">
-            Simpan Perubahan
-        </button>
     </form>
 </div>
 
+@push('scripts')
 <script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script>
-    function updateStatus() {
+    function updateStatusForm() {
         return {
-            form: {
-                status_code: ''
-            },
+            form: { status_code: '{{ $shipment->status->code }}' },
             showScanner: false,
             imagePreview: null,
-            gps: { lat: '', lng: '' },
-            
-            init() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(pos => {
-                        this.gps.lat = pos.coords.latitude;
-                        this.gps.lng = pos.coords.longitude;
-                    });
-                }
-            },
-
             startScanner() {
                 this.showScanner = true;
                 const html5QrCode = new Html5Qrcode("reader");
-                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-                html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                    if (decodedText === "{{ $shipment->tracking_number }}") {
-                        alert("Barcode terverifikasi!");
+                html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+                    if (text === "{{ $shipment->tracking_number }}") {
+                        alert("Berhasil Verifikasi!");
                         html5QrCode.stop();
                         this.showScanner = false;
-                    } else {
-                        alert("Barcode tidak cocok: " + decodedText);
                     }
                 });
             },
-
             previewImage(event) {
                 const file = event.target.files[0];
-                if (file) {
-                    this.imagePreview = URL.createObjectURL(file);
-                }
+                if (file) this.imagePreview = URL.createObjectURL(file);
             }
         }
     }
 </script>
+@endpush
 @endsection

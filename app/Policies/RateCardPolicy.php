@@ -37,7 +37,7 @@ class RateCardPolicy
 
     public function delete(User $user, RateCard $rateCard): bool
     {
-        return $user->role === 'admin';
+        return in_array($user->role, ['admin', 'manager'], true);
     }
 
     public function restore(User $user, RateCard $rateCard): bool

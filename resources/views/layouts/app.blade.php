@@ -228,18 +228,26 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ route('vehicles.index') }}" class="nav-link-custom {{ request()->routeIs('vehicles.*') ? 'active' : '' }}">
+                        <i class="bi bi-truck-front-fill"></i>
+                        <span class="nav-text">Armada</span>
+                    </a>
+                </li>
+                @endif
+                @if(auth()->user()->role === 'admin')
+                <li class="nav-item">
                     <a href="{{ route('branches.index') }}" class="nav-link-custom {{ request()->routeIs('branches.*') ? 'active' : '' }}">
                         <i class="bi bi-building-fill"></i>
                         <span class="nav-text">Cabang & Zona</span>
                     </a>
                 </li>
+                @endif
                 <li class="nav-item">
                     <a href="{{ url('/users') }}" class="nav-link-custom {{ request()->is('users*') ? 'active' : '' }}">
                         <i class="bi bi-people-fill"></i>
                         <span class="nav-text">Manajemen User</span>
                     </a>
                 </li>
-                @endif
 
                 <li class="nav-item">
                     <a href="{{ route('reports.summary') }}" class="nav-link-custom {{ request()->routeIs('reports.*') ? 'active' : '' }}">
@@ -277,15 +285,15 @@
                     @endisset
                 </div>
 
-                <div class="d-flex align-items-center gap-3">
-                    <div class="d-none d-sm-flex flex-column align-items-end">
+                <a href="{{ route('profile.edit') }}" class="d-flex align-items-center gap-3 text-decoration-none">
+                    <div class="d-none d-sm-flex flex-column align-items-end text-end">
                         <span class="fw-bold text-dark" style="font-size: 0.9rem;">{{ auth()->user()->name }}</span>
                         <span class="fw-bold text-primary text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">{{ auth()->user()->role }}</span>
                     </div>
                     <div class="bg-primary text-white fw-bold d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,97,255,0.2);">
                         {{ substr(auth()->user()->name, 0, 1) }}
                     </div>
-                </div>
+                </a>
             </header>
 
             <main class="content-area">

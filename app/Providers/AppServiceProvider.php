@@ -28,6 +28,9 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Shipment::class, ShipmentPolicy::class);
         Gate::policy(Payment::class, PaymentPolicy::class);
+        Gate::policy(\App\Models\Vehicle::class, \App\Policies\VehiclePolicy::class);
+        Gate::policy(\App\Models\RateCard::class, \App\Policies\RateCardPolicy::class);
+        Gate::policy(\App\Models\Branch::class, \App\Policies\BranchPolicy::class);
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

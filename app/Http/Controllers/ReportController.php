@@ -32,7 +32,7 @@ class ReportController extends Controller
             $paymentQuery->whereHas('shipment', fn ($q) => $q->where('branch_id', $actor->branch_id));
         }
 
-        return response()->json([
+        $data = [
             'period' => [
                 'from' => $fromDate,
                 'until' => $untilDate,
@@ -42,16 +42,31 @@ class ReportController extends Controller
             'shipments_delivered' => (clone $shipmentQuery)->whereHas('status', fn ($query) => $query->where('code', 'delivered'))->count(),
             'revenue_total' => (float) (clone $paymentQuery)->where('status', 'settlement')->sum('amount'),
             'payment_pending' => (float) (clone $paymentQuery)->where('status', 'pending')->sum('amount'),
-            'branches_total' => Branch::query()->count(),
-            'couriers_total' => User::query()->where('role', 'courier')->count(),
-        ]);
+            'branches_total' => $actor->role === 'admin' ? Branch::query()->count() : 1,
+            'couriers_total' => User::query()->where('role', 'courier')
+                ->when(in_array($actor->role, ['manager', 'kasir'], true), fn ($q) => $q->where('branch_id', $actor->branch_id))
+                ->count(),
+        ];
+
+        if ($request->expectsJson()) {
+            return response()->json($data);
+        }
+
+        return view('reports.summary', compact('data'));
     }
 
     public function branchPerformance(Request $request): JsonResponse
     {
+        $actor = $request->user();
         [$fromDate, $untilDate] = $this->resolveDateRange($request);
 
-        $branches = Branch::query()
+        $query = Branch::query();
+
+        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+            $query->where('id', $actor->branch_id);
+        }
+
+        $branches = $query
             ->withCount(['shipments'])
             ->get()
             ->map(fn (Branch $branch) => [
@@ -68,7 +83,11 @@ class ReportController extends Controller
                     ->sum('amount'),
             ]);
 
-        return response()->json($branches);
+        if ($request->expectsJson()) {
+            return response()->json($branches);
+        }
+
+        return view('reports.branch-performance', compact('branches'));
     }
 
     public function branchDetail(Request $request, Branch $branch): JsonResponse
@@ -139,10 +158,12 @@ class ReportController extends Controller
 
     public function courierPerformance(Request $request): JsonResponse
     {
+        $actor = $request->user();
         [$fromDate, $untilDate] = $this->resolveDateRange($request);
 
         $couriers = User::query()
             ->where('role', 'courier')
+            ->when(in_array($actor?->role, ['manager', 'kasir'], true), fn ($q) => $q->where('branch_id', $actor->branch_id))
             ->withCount(['assignedShipments'])
             ->get()
             ->map(fn (User $courier) => [
@@ -162,11 +183,16 @@ class ReportController extends Controller
 
     public function paymentOverview(Request $request): JsonResponse
     {
+        $actor = $request->user();
         [$fromDate, $untilDate] = $this->resolveDateRange($request);
 
         $paymentQuery = Payment::query()->when($fromDate || $untilDate, function ($query) use ($fromDate, $untilDate) {
             $this->applyDateRange($query, 'created_at', $fromDate, $untilDate);
         });
+
+        if (in_array($actor?->role, ['manager', 'kasir'], true)) {
+            $paymentQuery->whereHas('shipment', fn ($q) => $q->where('branch_id', $actor->branch_id));
+        }
 
         return response()->json([
             'period' => [
@@ -189,13 +215,19 @@ class ReportController extends Controller
 
         $report = $dailyReconciliationService->buildForDate(
             $validated['date'] ?? now(),
-            (int) ($validated['limit'] ?? 25)
+            (int) ($validated['limit'] ?? 25),
+            in_array($request->user()?->role, ['manager', 'kasir'], true) ? $request->user()->branch_id : null
         );
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $report,
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'data' => $report,
+            ]);
+        }
+
+        $data = $report;
+        return view('reports.daily-reconciliation', compact('data'));
     }
 
     public function branchBalances(Request $request): JsonResponse

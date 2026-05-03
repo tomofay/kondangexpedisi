@@ -130,4 +130,9 @@ class Shipment extends Model
     {
         return $this->hasMany(ShipmentTracking::class);
     }
+
+    public function operationalProofs(): HasMany
+    {
+        return $this->hasMany(ShipmentTrackingProof::class);
+    }
 }

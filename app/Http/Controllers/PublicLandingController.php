@@ -27,7 +27,6 @@ class PublicLandingController extends Controller
             ->groupBy('section');
 
         $branches = Branch::query()
-            ->with('zone')
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -106,31 +105,27 @@ class PublicLandingController extends Controller
             return response()->json(['error' => $validator->errors()->first()], 422);
         }
 
-        $originBranch = Branch::with('zone')->find($request->origin_branch_id);
-        $destBranch = Branch::with('zone')->find($request->destination_branch_id);
-
-        if (! $originBranch->zone || ! $destBranch->zone) {
-            return response()->json(['error' => 'Zona cabang tidak tersedia.'], 422);
-        }
-
         $serviceType = $request->service_type ?: 'regular';
         $weight = (float) $request->weight_kg;
 
-        $rateCard = RateCard::where('origin_zone_id', $originBranch->zone_id)
-            ->where('destination_zone_id', $destBranch->zone_id)
+        $rateCard = RateCard::where('origin_branch_id', $request->origin_branch_id)
+            ->where('destination_branch_id', $request->destination_branch_id)
             ->where('service_type', $serviceType)
             ->where('is_active', true)
+            ->where('min_weight_kg', '<=', $weight)
+            ->where(function ($q) use ($weight) {
+                $q->whereNull('max_weight_kg')->orWhere('max_weight_kg', '>=', $weight);
+            })
+            ->orderByDesc('min_weight_kg')
             ->first();
 
-        if (! $rateCard) {
-            // Fallback basic calculation
+        if (!$rateCard) {
+            // Fallback if no rate card found
             $basePrice = 15000;
             $perKg = 7000;
-            $multiplier = (float) $destBranch->zone->multiplier;
-            $total = ($basePrice * $multiplier) + ($perKg * $weight);
+            $total = $basePrice + ($perKg * $weight);
         } else {
-            $multiplier = (float) $destBranch->zone->multiplier;
-            $total = ((float) $rateCard->base_price * $multiplier) + ((float) $rateCard->per_kg_price * $weight);
+            $total = ((float) $rateCard->base_price) + ((float) $rateCard->per_kg_price * $weight);
         }
 
         return response()->json([

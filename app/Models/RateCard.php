@@ -19,7 +19,7 @@ class RateCard extends Model
         'max_weight_kg',
         'base_price',
         'per_kg_price',
-        'insurance_fee',
+        'estimated_days',
         'is_active',
     ];
 
@@ -30,7 +30,6 @@ class RateCard extends Model
             'max_weight_kg' => 'decimal:2',
             'base_price' => 'decimal:2',
             'per_kg_price' => 'decimal:2',
-            'insurance_fee' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

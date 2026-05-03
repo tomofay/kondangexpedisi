@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 
 class DailyReconciliationService
 {
-    public function buildForDate(Carbon|string|null $date = null, int $limit = 25): array
+    public function buildForDate(Carbon|string|null $date = null, int $limit = 25, ?int $branchId = null): array
     {
         $targetDate = $date instanceof Carbon
             ? $date->copy()
@@ -25,18 +25,21 @@ class DailyReconciliationService
                 $query->whereBetween('created_at', [$start, $end])
                     ->orWhereBetween('updated_at', [$start, $end]);
             })
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->latest('updated_at')
             ->get();
 
         $payments = Payment::query()
             ->with(['shipment.status:id,code,name,is_final'])
             ->whereBetween('created_at', [$start, $end])
+            ->when($branchId, fn ($q) => $q->whereHas('shipment', fn ($sq) => $sq->where('branch_id', $branchId)))
             ->latest('created_at')
             ->get();
 
         $trackings = ShipmentTracking::query()
             ->with(['shipment.status:id,code,name,is_final', 'status:id,code,name,is_final'])
             ->whereBetween('event_at', [$start, $end])
+            ->when($branchId, fn ($q) => $q->whereHas('shipment', fn ($sq) => $sq->where('branch_id', $branchId)))
             ->latest('event_at')
             ->get();
 

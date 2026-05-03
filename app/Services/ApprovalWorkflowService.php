@@ -23,6 +23,33 @@ class ApprovalWorkflowService
     ) {
     }
 
+    public function requestRateCardCreationApproval(User $actor, array $attributes, string $reason): AdminTask
+    {
+        return $this->upsertAdminTask(
+            'approve_new_rate_card',
+            'Approval Rate Card Baru: ' . ($attributes['origin_branch_id'] ?? '?') . ' -> ' . ($attributes['destination_branch_id'] ?? '?'),
+            $actor,
+            'medium',
+            array_merge($attributes, ['reason' => $reason]),
+            'Menunggu approval pembuatan rate card baru.'
+        );
+    }
+
+    public function requestRateCardDeletionApproval(RateCard $rateCard, User $actor, string $reason): AdminTask
+    {
+        return $this->upsertAdminTask(
+            'approve_rate_card_deletion',
+            'Approval Hapus Rate Card: ' . ($rateCard->originBranch->name ?? 'N/A') . ' -> ' . ($rateCard->destinationBranch->name ?? 'N/A'),
+            $actor,
+            'high',
+            [
+                'rate_card_id' => $rateCard->id,
+                'reason' => $reason,
+            ],
+            'Menunggu approval penghapusan rate card.'
+        );
+    }
+
     public function requestRateCardApproval(RateCard $rateCard, User $actor, array $requestedAttributes, string $reason): RateCardApproval
     {
         $current = $rateCard->only(array_keys($requestedAttributes));
@@ -46,37 +73,31 @@ class ApprovalWorkflowService
             ]);
         }
 
-        $approval = RateCardApproval::query()
-            ->where('rate_card_id', $rateCard->id)
-            ->where('status', 'pending')
-            ->latest('created_at')
-            ->first();
-
-        $payload = [
-            'changes' => $changes,
-            'reason' => $reason,
-            'notes' => 'Menunggu approval perubahan rate card.',
-        ];
-
-        if ($approval) {
-            $approval->update([
+        $approval = RateCardApproval::query()->updateOrCreate(
+            ['rate_card_id' => $rateCard->id, 'status' => 'pending'],
+            [
                 'requested_by' => $actor->id,
                 'changes' => $changes,
                 'reason' => $reason,
-                'notes' => $payload['notes'],
-            ]);
+                'notes' => $reason, // Use reason as initial notes
+            ]
+        );
 
-            return $approval->fresh();
-        }
+        // Trigger AdminTask for unified queue
+        $this->upsertAdminTask(
+            'approve_rate_card',
+            'Approval Edit Rate Card: ' . ($rateCard->originBranch->name ?? 'N/A') . ' -> ' . ($rateCard->destinationBranch->name ?? 'N/A'),
+            $actor,
+            'medium',
+            [
+                'approval_id' => $approval->id,
+                'rate_card_id' => $rateCard->id,
+                'reason' => $reason,
+            ],
+            'Menunggu approval perubahan rate card.'
+        );
 
-        return RateCardApproval::query()->create([
-            'rate_card_id' => $rateCard->id,
-            'requested_by' => $actor->id,
-            'status' => 'pending',
-            'changes' => $changes,
-            'reason' => $reason,
-            'notes' => $payload['notes'],
-        ]);
+        return $approval;
     }
 
     public function approveRateCardApproval(RateCardApproval $approval, User $approver, ?string $note = null): RateCard
@@ -207,14 +228,17 @@ class ApprovalWorkflowService
         );
     }
 
-    public function requestKasirEditApproval(Model $model, User $kasir, array $changes, string $reason): AdminTask
+    public function requestKasirEditApproval(Model $model, User $actor, array $changes, string $reason): AdminTask
     {
         $modelType = class_basename($model);
+        $isNew = ! $model->exists && ! ($model->id ?? null);
+        $actionName = $isNew ? 'Tambah' : 'Edit';
+        
         $identifier = match (true) {
-            $model instanceof Shipment => $model->tracking_number ?? 'New',
-            $model instanceof Payment => (string) ($model->id ?? 'New'),
-            $model instanceof RateCard => (string) ($model->id ?? 'New'),
-            default => (string) ($model->id ?? 'New'),
+            $model instanceof Shipment => $model->tracking_number ?? 'Baru',
+            $model instanceof Payment => (string) ($model->id ?? 'Baru'),
+            $model instanceof RateCard => (string) ($model->id ?? 'Baru'),
+            default => (string) ($model->id ?? 'Baru'),
         };
 
         $dedupeField = match (true) {
@@ -223,13 +247,15 @@ class ApprovalWorkflowService
             default => null,
         };
 
+        $roleName = ucfirst($actor->role);
+
         $actionData = [
             'model_type' => get_class($model),
             'model_id' => $model->id,
             'changes' => $changes,
             'reason' => $reason,
-            'kasir_id' => $kasir->id,
-            'kasir_branch_id' => $kasir->branch_id,
+            'kasir_id' => $actor->id,
+            'kasir_branch_id' => $actor->branch_id,
         ];
 
         if ($dedupeField && $model->id) {
@@ -238,11 +264,11 @@ class ApprovalWorkflowService
 
         return $this->upsertAdminTask(
             'kasir_edit_approval',
-            sprintf('Approval Edit %s %s dari Kasir', $modelType, $identifier),
-            $kasir,
+            sprintf('Approval %s %s %s dari %s', $actionName, $modelType, $identifier, $roleName),
+            $actor,
             'medium',
             $actionData,
-            sprintf('Kasir %s mengajukan perubahan pada %s %s.', $kasir->name, $modelType, $identifier)
+            sprintf('%s %s mengajukan %s pada %s %s.', $roleName, $actor->name, strtolower($actionName), $modelType, $identifier)
         );
     }
 
@@ -266,6 +292,13 @@ class ApprovalWorkflowService
 
     public function approveAdminTask(AdminTask $task, User $approver, ?string $note = null): Model
     {
+        // 1. Prevent Self-Approval
+        if ($task->created_by === $approver->id) {
+            throw ValidationException::withMessages([
+                'approver' => 'Anda tidak dapat menyetujui pengajuan yang Anda buat sendiri.',
+            ]);
+        }
+
         // Manager bisa approve kasir_edit_approval dari cabangnya
         // Admin bisa approve semua task
         if ($approver->role === 'manager') {
@@ -278,7 +311,7 @@ class ApprovalWorkflowService
 
             if (! in_array($task->task_type, $allowedManagerTasks, true)) {
                 throw ValidationException::withMessages([
-                    'approver' => 'Manager hanya dapat menyetujui pengajuan operasional cabang.',
+                    'approver' => 'Manager hanya dapat menyetujui pengajuan operasional cabang (Rate Card harus via Admin).',
                 ]);
             }
 
@@ -321,9 +354,11 @@ class ApprovalWorkflowService
                 'shipment_final_status_approval', 'reassign_shipment' => $this->applyShipmentFinalStatusApproval($task, $approver, $note),
                 'shipment_reassign_approval' => $this->applyShipmentReassignApproval($task, $approver, $note),
                 'payment_manual_status_approval' => $this->applyPaymentManualStatusApproval($task, $approver, $note),
+                'approve_new_rate_card' => $this->applyRateCardCreationApproval($task, $approver, $note),
                 'approve_rate_card' => $this->applyRateCardTaskApproval($task, $approver, $note),
                 'kasir_edit_approval' => $this->applyKasirEditApproval($task, $approver, $note),
                 'shipment_pricing_override_approval' => $this->applyShipmentPricingOverrideApproval($task, $approver, $note),
+                'approve_rate_card_deletion' => $this->applyRateCardDeletionApproval($task, $approver, $note),
                 default => throw ValidationException::withMessages([
                     'task_type' => 'Task approval sensitif tidak dikenali ('.$task->task_type.').',
                 ]),
@@ -343,6 +378,12 @@ class ApprovalWorkflowService
 
     public function rejectAdminTask(AdminTask $task, User $approver, string $reason): AdminTask
     {
+        // 1. Prevent Self-Rejection
+        if ($task->created_by === $approver->id) {
+            throw ValidationException::withMessages([
+                'approver' => 'Anda tidak dapat menolak pengajuan yang Anda buat sendiri.',
+            ]);
+        }
         // Manager bisa reject kasir_edit_approval dari cabangnya
         if ($approver->role === 'manager') {
             $allowedManagerTasks = [
@@ -493,6 +534,31 @@ class ApprovalWorkflowService
         return $this->approveRateCardApproval($rateCardApproval, $approver, $note);
     }
 
+    private function applyRateCardCreationApproval(AdminTask $task, User $approver, ?string $note): RateCard
+    {
+        // Only admin can approve this
+        if ($approver->role !== 'admin') {
+            throw ValidationException::withMessages(['approver' => 'Hanya admin yang dapat menyetujui rate card baru.']);
+        }
+
+        $data = $task->action_data;
+        $attributes = collect($data)->except(['reason', 'kasir_id', 'kasir_branch_id'])->toArray();
+
+        $rateCard = RateCard::query()->create($attributes);
+
+        $this->auditLogService->record(
+            'rate_card.create_approved',
+            $rateCard,
+            $approver,
+            [],
+            $rateCard->fresh()->toArray(),
+            $note ?: 'Pembuatan rate card baru disetujui oleh admin.',
+            ['source' => 'approval_workflow', 'requester_id' => $task->created_by]
+        );
+
+        return $rateCard;
+    }
+
     private function applyKasirEditApproval(AdminTask $task, User $approver, ?string $note): Model
     {
         $modelClass = (string) ($task->action_data['model_type'] ?? '');
@@ -504,6 +570,9 @@ class ApprovalWorkflowService
                 'task' => 'Data perubahan tidak valid.',
             ]);
         }
+
+        // Filter out fields that are not columns (like 'reason' from the request)
+        $changes = collect($changes)->except(['reason', '_token', '_method'])->toArray();
 
         // For new model creation (model_id is null/0)
         if ($modelId <= 0) {
@@ -550,6 +619,32 @@ class ApprovalWorkflowService
             $approver,
             $note
         );
+    }
+
+    private function applyRateCardDeletionApproval(AdminTask $task, User $approver, ?string $note): RateCard
+    {
+        if ($approver->role !== 'admin') {
+            throw ValidationException::withMessages(['approver' => 'Hanya admin yang dapat menyetujui penghapusan rate card.']);
+        }
+
+        $rateCardId = (int) ($task->action_data['rate_card_id'] ?? 0);
+        $rateCard = RateCard::query()->findOrFail($rateCardId);
+
+        $before = $rateCard->toArray();
+
+        $rateCard->delete();
+
+        $this->auditLogService->record(
+            'rate_card.delete_approved',
+            $rateCard,
+            $approver,
+            $before,
+            [],
+            $note ?: 'Penghapusan rate card disetujui oleh admin.',
+            ['source' => 'approval_workflow', 'requester_id' => $task->created_by]
+        );
+
+        return $rateCard;
     }
 
     private function upsertAdminTask(string $taskType, string $title, User $actor, string $priority, array $actionData, string $notes): AdminTask

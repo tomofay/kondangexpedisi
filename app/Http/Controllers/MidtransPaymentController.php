@@ -15,8 +15,9 @@ class MidtransPaymentController extends Controller
         $this->authorize('view', $shipment);
 
         // Cari payment pending atau buat baru jika belum ada
+        // We also allow retrying failed/expired/cancelled payments
         $payment = $shipment->payments()
-            ->whereIn('status', ['pending', 'unpaid'])
+            ->whereIn('status', ['pending', 'unpaid', 'failed', 'expire', 'cancel'])
             ->first();
 
         if (!$payment) {
@@ -33,6 +34,11 @@ class MidtransPaymentController extends Controller
             return response()->json([
                 'message' => 'Shipment ini sudah lunas.',
             ], 422);
+        }
+
+        // If it's a retry (failed/expire/cancel), we need to clear midtrans_order_id to force new transaction
+        if (in_array($payment->status, ['failed', 'expire', 'cancel'], true)) {
+            $payment->update(['midtrans_order_id' => null]);
         }
 
         $result = $midtransService->createSnapTransaction($payment, $shipment);

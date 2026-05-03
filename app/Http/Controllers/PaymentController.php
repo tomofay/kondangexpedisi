@@ -29,13 +29,13 @@ class PaymentController extends Controller
 
         $query = Payment::query()->with(['shipment', 'processor']);
 
-        if (in_array($actor?->role, ['kasir'], true)) {
-            $managerBranch = Branch::query()->find($actor->branch_id);
+        if (in_array($actor?->role, ['kasir', 'manager'], true)) {
+            $branchId = $actor->branch_id;
 
-            if (! $managerBranch || ! $managerBranch->is_active) {
+            if (! $branchId) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->whereHas('shipment', fn ($shipmentQuery) => $shipmentQuery->where('branch_id', $managerBranch->id));
+                $query->whereHas('shipment', fn ($shipmentQuery) => $shipmentQuery->where('branch_id', $branchId));
             }
         }
 
@@ -45,6 +45,16 @@ class PaymentController extends Controller
                     ->orWhere('status', 'like', "%{$search}%")
                     ->orWhere('midtrans_order_id', 'like', "%{$search}%")
                     ->orWhereHas('shipment', fn ($shipmentQuery) => $shipmentQuery->where('tracking_number', 'like', "%{$search}%"));
+
+                // If search starts with #, try searching by ID
+                if (str_starts_with($search, '#')) {
+                    $id = substr($search, 1);
+                    if (is_numeric($id)) {
+                        $q->orWhere('id', $id);
+                    }
+                } elseif (is_numeric($search)) {
+                    $q->orWhere('id', $search);
+                }
             });
         }
 
@@ -160,6 +170,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'status' => ['nullable', Rule::in(['pending', 'settlement', 'deny', 'expire', 'cancel', 'refund', 'failed'])],
             'method' => ['nullable', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet'])],
+            'amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
             'manual_override' => ['sometimes', 'boolean'],
             'manual_override_reason' => ['nullable', 'string', 'max:500'],
@@ -174,8 +185,10 @@ class PaymentController extends Controller
         }
 
         $sensitiveStatuses = ['settlement', 'refund'];
+        $actor = $request->user();
 
-        if (isset($validated['status']) && in_array($validated['status'], $sensitiveStatuses, true)) {
+        // If not manager and updating to sensitive status, request approval
+        if ($actor->role !== 'manager' && isset($validated['status']) && in_array($validated['status'], $sensitiveStatuses, true)) {
             $task = $approvalWorkflowService->requestPaymentManualStatusApproval(
                 $payment,
                 $request->user(),
@@ -194,12 +207,16 @@ class PaymentController extends Controller
             ], 202);
         }
 
+        // Direct update for managers or non-sensitive statuses
         if ($manualOverride) {
             $payment = $operationalIssueService->applyPaymentManualOverride(
                 $payment,
                 $request->user(),
-                ['status' => $validated['status'] ?? $payment->status],
-                $validated['manual_override_reason']
+                [
+                    'status' => $validated['status'] ?? $payment->status,
+                    'amount' => $validated['amount'] ?? $payment->amount,
+                ],
+                $validated['manual_override_reason'] ?? $validated['notes'] ?? 'Manual override'
             );
         } else {
             $payment->update($validated);

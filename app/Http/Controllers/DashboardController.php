@@ -24,12 +24,12 @@ class DashboardController extends Controller
             'manager' => view('dashboard.manager', [
                 'user' => $user,
                 'level' => 1,
-                'metrics' => $this->managerMetrics(),
+                'metrics' => $this->managerMetrics($user),
             ]),
             'admin' => view('dashboard.admin', [
                 'user' => $user,
                 'level' => 2,
-                'metrics' => $this->adminMetrics(),
+                'metrics' => $this->adminMetrics($user),
             ]),
             'kasir' => view('dashboard.kasir', [
                 'user' => $user,
@@ -40,32 +40,47 @@ class DashboardController extends Controller
         };
     }
 
-    private function managerMetrics(): array
+    private function managerMetrics(User $user): array
     {
         $finalStatuses = ['delivered', 'cancelled', 'returned'];
+        $branchId = $user->branch_id;
+
+        $shipmentQuery = Shipment::query();
+        $taskQuery = AdminTask::query();
+        $paymentQuery = Payment::query();
+
+        if ($branchId) {
+            $shipmentQuery->where('branch_id', $branchId);
+            $taskQuery->where(function($q) use ($branchId) {
+                $q->whereHas('creator', fn($u) => $u->where('branch_id', $branchId))
+                  ->orWhere('action_data->branch_id', $branchId);
+            });
+            $paymentQuery->whereHas('shipment', fn($q) => $q->where('branch_id', $branchId));
+        }
 
         return [
-            'shipments_today' => Shipment::query()->whereDate('created_at', today())->count(),
-            'shipments_in_progress' => Shipment::query()
+            'branch_name' => $user->branch?->name,
+            'shipments_today' => (clone $shipmentQuery)->whereDate('created_at', today())->count(),
+            'shipments_in_progress' => (clone $shipmentQuery)
                 ->whereHas('status', fn ($query) => $query->whereIn('code', ['pending', 'in_transit', 'out_for_delivery']))
                 ->count(),
-            'shipments_overdue' => Shipment::query()
+            'shipments_overdue' => (clone $shipmentQuery)
                 ->whereNotNull('estimated_delivery_at')
                 ->where('estimated_delivery_at', '<', now())
                 ->whereDoesntHave('status', fn ($query) => $query->whereIn('code', $finalStatuses))
                 ->count(),
-            'pending_approvals' => AdminTask::query()
+            'pending_approvals' => (clone $taskQuery)
                 ->whereIn('status', ['pending', 'in_progress'])
                 ->count(),
-            'payments_pending' => Payment::query()->where('status', 'pending')->count(),
-            'revenue_settlement_today' => (float) Payment::query()->where('status', 'settlement')->whereDate('created_at', today())->sum('amount'),
+            'payments_pending' => (clone $paymentQuery)->where('status', 'pending')->count(),
+            'revenue_settlement_today' => (float) (clone $paymentQuery)->where('status', 'settlement')->whereDate('created_at', today())->sum('amount'),
         ];
     }
 
-    private function adminMetrics(): array
+    private function adminMetrics(User $user): array
     {
         return [
-            ...$this->managerMetrics(),
+            ...$this->managerMetrics($user),
             'users_total' => User::query()->count(),
             'branches_total' => Branch::query()->count(),
             'rate_cards_total' => RateCard::query()->count(),

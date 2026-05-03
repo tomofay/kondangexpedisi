@@ -224,18 +224,37 @@ class OperationalIssueService
     {
         $before = $payment->only([
             'status',
+            'amount',
             'processing_status',
             'processing_error',
         ]);
 
         $payment->forceFill([
             'status' => $attributes['status'] ?? $payment->status,
+            'amount' => $attributes['amount'] ?? $payment->amount,
             'processing_status' => 'ok',
             'processing_error' => null,
             'manual_override_by' => $actor->id,
             'manual_override_reason' => $reason,
             'manual_override_at' => now(),
         ])->save();
+
+        // Sync with shipment amount if changed
+        $shipment = $payment->shipment;
+        if ($shipment) {
+            if (isset($attributes['amount']) && (float)$attributes['amount'] !== (float)$before['amount']) {
+                $shipment->forceFill([
+                    'total_amount' => $attributes['amount'],
+                    'subtotal_amount' => $attributes['amount'] - ($shipment->insurance_amount + $shipment->admin_fee),
+                    'manual_override_reason' => trim(($shipment->manual_override_reason ? $shipment->manual_override_reason . ' ' : '') . 'Sync from payment manual override: ' . $reason),
+                ])->save();
+            }
+
+            // Sync status
+            if (isset($attributes['status'])) {
+                app(\App\Services\ShipmentService::class)->syncPaymentStatus($shipment, $attributes['status']);
+            }
+        }
 
         $this->auditLogService->record(
             'payment.manual_override',
