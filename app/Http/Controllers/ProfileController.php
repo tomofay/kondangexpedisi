@@ -34,13 +34,30 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $newEmail = $request->input('email');
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        // Check if email is changing and if it's verified via OTP
+        if ($newEmail !== $user->email) {
+            $otpData = session('profile_otp');
+            if (!session('profile_otp_verified') || !$otpData || $otpData['type'] !== 'email' || $otpData['email'] !== $newEmail) {
+                return back()->with('error', 'Verifikasi OTP diperlukan untuk mengubah email.');
+            }
+            session()->forget(['profile_otp', 'profile_otp_verified']);
         }
 
-        $request->user()->save();
+        $user->fill($request->safe()->except('photo'));
+
+        if ($request->hasFile('photo')) {
+            $path = $request->file('photo')->store('profiles', 'public');
+            $user->photo = $path;
+        }
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
+
+        $user->save();
 
         // Sync with customer profile if applicable
         if ($request->user()->role === 'customer' && $request->user()->customer) {

@@ -50,19 +50,26 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::post('/payments/{shipment}/midtrans/snap-token', [MidtransPaymentController::class, 'createSnapToken'])
+        Route::post('/payments/{shipment}/midtrans/snap-token', [MidtransPaymentController::class, 'createSnapToken'])
         ->middleware('role:kasir,manager,customer')
         ->name('payments.midtrans.snap-token');
 
+    Route::post('/profile/otp/send-email', [\App\Http\Controllers\ProfileOtpController::class, 'sendEmailOtp'])->name('profile.otp.email');
+    Route::post('/profile/otp/send-password', [\App\Http\Controllers\ProfileOtpController::class, 'sendPasswordOtp'])->name('profile.otp.password');
+    Route::post('/profile/otp/verify', [\App\Http\Controllers\ProfileOtpController::class, 'verifyOtp'])->name('profile.otp.verify');
+
     Route::middleware('role:admin,kasir,manager,courier')->group(function () {
         Route::resource('shipments', ShipmentController::class)->except(['create', 'edit']);
-        Route::get('shipments/{shipment}/label', [ShipmentController::class, 'label'])->name('shipments.label');
         Route::post('shipments/{shipment}/assign-courier', [ShipmentController::class, 'assignCourier'])
             ->name('shipments.assign-courier');
         Route::post('shipments/{shipment}/transition-status', [ShipmentController::class, 'transitionStatus'])
             ->name('shipments.transition-status');
         Route::resource('shipment-trackings', ShipmentTrackingController::class)->except(['create', 'edit']);
     });
+
+    Route::get('shipments/{shipment}/label', [ShipmentController::class, 'label'])
+        ->middleware('role:admin,kasir,manager,courier,customer')
+        ->name('shipments.label');
 
     Route::middleware('role:admin,kasir,manager')->group(function () {
         Route::post('shipments/{shipment}/pricing-override/request', [ShipmentController::class, 'requestPricingOverride'])
@@ -74,17 +81,12 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,kasir,manager')->group(function () {
         Route::get('/users', [UserManagementController::class, 'index'])->middleware('role:admin,manager');
         Route::get('/reports/summary', [ReportController::class, 'summary'])->name('reports.summary');
-        Route::get('/reports/daily-reconciliation', [ReportController::class, 'dailyReconciliation'])->name('reports.daily-reconciliation');
         Route::get('/reports/summary/export', [ReportController::class, 'summaryExport'])->name('reports.summary.export');
         Route::get('/reports/branch-performance', [ReportController::class, 'branchPerformance'])->name('reports.branch-performance');
         Route::get('/reports/branch/{branch}', [ReportController::class, 'branchDetail'])->name('reports.branch-detail');
         Route::get('/reports/branch-performance/export', [ReportController::class, 'branchPerformanceExport'])->name('reports.branch-performance.export');
         Route::get('/reports/courier-performance', [ReportController::class, 'courierPerformance'])->name('reports.courier-performance');
         Route::get('/reports/payment-overview', [ReportController::class, 'paymentOverview'])->name('reports.payment-overview');
-        Route::get('/reports/branch-balances', [ReportController::class, 'branchBalances'])->name('reports.branch-balances');
-        Route::get('/reports/branch-balances/export', [ReportController::class, 'branchBalancesExport'])->name('reports.branch-balances.export');
-        Route::get('/reports/courier-earnings', [ReportController::class, 'courierEarnings'])->name('reports.courier-earnings');
-        Route::get('/reports/courier-earnings/export', [ReportController::class, 'courierEarningsExport'])->name('reports.courier-earnings.export');
 
         Route::get('/audit-logs/manual-corrections', [AuditLogController::class, 'manualCorrections'])->name('audit-logs.manual-corrections');
         Route::resource('audit-logs', AuditLogController::class)->only(['index', 'show']);
@@ -133,19 +135,30 @@ Route::post('/payments/midtrans/callback', MidtransWebhookController::class)
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('payments.midtrans.callback');
 
+Route::get('/payments/midtrans/finish', [MidtransPaymentController::class, 'finish'])->name('payments.midtrans.finish');
+Route::get('/payments/midtrans/unfinish', [MidtransPaymentController::class, 'unfinish'])->name('payments.midtrans.unfinish');
+Route::get('/payments/midtrans/error', [MidtransPaymentController::class, 'error'])->name('payments.midtrans.error');
+
     // Mobile Portals (Laravel Web UI instead of Flutter)
     Route::middleware(['auth', 'role:customer'])->prefix('customer')->name('customer.')->group(function () {
         Route::get('/dashboard', [CustomerPortalController::class, 'index'])->name('dashboard');
+        Route::get('/shipments', [CustomerPortalController::class, 'list'])->name('shipments.index');
+        Route::get('/shipments/search', [CustomerPortalController::class, 'search'])->name('shipments.search');
         Route::get('/shipments/{shipment}/track', [CustomerPortalController::class, 'track'])->name('shipments.track');
         Route::get('/shipments/create', [CustomerPortalController::class, 'create'])->name('shipments.create');
         Route::post('/shipments', [CustomerPortalController::class, 'store'])->name('shipments.store');
         Route::get('/shipments/quote', [CustomerPortalController::class, 'quote'])->name('shipments.quote');
+        Route::get('/shipments/rates', [CustomerPortalController::class, 'rates'])->name('shipments.rates');
         Route::get('/notifications', [NotificationController::class, 'customerIndex'])->name('notifications.index');
         Route::get('/notifications/push-ready', [NotificationController::class, 'pushReady'])->name('notifications.push-ready');
     });
 
     Route::middleware(['auth', 'role:courier'])->prefix('courier')->name('courier.')->group(function () {
         Route::get('/tasks', [CourierPortalController::class, 'tasks'])->name('tasks');
+        Route::get('/shipments', [CourierPortalController::class, 'index'])->name('shipments.index');
+        Route::get('/shipments/bulk-edit', [CourierPortalController::class, 'bulkEdit'])->name('shipments.bulk-edit');
+        Route::post('/shipments/bulk-update', [CourierPortalController::class, 'bulkUpdate'])->name('shipments.bulk-update');
+        Route::post('/shipments/claim', [CourierPortalController::class, 'claim'])->name('shipments.claim');
         Route::get('/shipments/{shipment}/update', [CourierPortalController::class, 'edit'])->name('shipments.edit');
         Route::post('/shipments/{shipment}/update', [CourierPortalController::class, 'update'])->name('shipments.update');
     });

@@ -22,23 +22,19 @@ class MidtransService
     {
         $orderId = $payment->midtrans_order_id ?: $this->generateOrderId($payment);
 
-        $customerDetails = [
-            'first_name' => $shipment->recipient_name,
-            'phone' => $shipment->recipient_phone,
-            'billing_address' => [
-                'address' => $shipment->recipient_address,
-            ],
-            'shipping_address' => [
-                'address' => $shipment->sender_address,
-            ],
-        ];
-
         $payload = [
             'transaction_details' => [
                 'order_id' => $orderId,
                 'gross_amount' => (int) round((float) $payment->amount),
             ],
-            'customer_details' => $customerDetails,
+            'customer_details' => [
+                'first_name' => $shipment->sender_name,
+                'email' => auth()->user()->email ?? 'customer@ekspedisi.com',
+                'phone' => $shipment->sender_phone,
+                'shipping_address' => [
+                    'address' => $shipment->sender_address,
+                ],
+            ],
             'item_details' => [
                 [
                     'id' => $shipment->tracking_number,
@@ -47,14 +43,32 @@ class MidtransService
                     'name' => 'Shipment '.$shipment->tracking_number,
                 ],
             ],
+            'callbacks' => [
+                'finish' => route('payments.midtrans.finish'),
+                'unfinish' => route('payments.midtrans.unfinish'),
+                'error' => route('payments.midtrans.error'),
+            ],
         ];
 
-        $snapToken = Snap::getSnapToken($payload);
+        try {
+            \Illuminate\Support\Facades\Log::debug('Requesting Snap Transaction for Order: ' . $orderId, $payload);
+            $response = \Midtrans\Snap::createTransaction($payload);
+            $snapToken = $response->token;
+            $redirectUrl = $response->redirect_url;
+            \Illuminate\Support\Facades\Log::debug('Received Snap Token: ' . $snapToken);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Midtrans Snap::createTransaction failed: ' . $e->getMessage(), [
+                'order_id' => $orderId,
+                'payload' => $payload,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
 
         return [
             'order_id' => $orderId,
             'snap_token' => $snapToken,
-            'snap_redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.$snapToken,
+            'snap_redirect_url' => $redirectUrl,
             'payload' => $payload,
         ];
     }

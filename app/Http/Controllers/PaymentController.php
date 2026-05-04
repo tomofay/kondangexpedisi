@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Payment;
+use App\Models\Shipment;
 use App\Services\ApprovalWorkflowService;
 use App\Services\AuditLogService;
 use App\Services\OperationalIssueService;
+use App\Services\ShipmentService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -87,15 +89,21 @@ class PaymentController extends Controller
         $this->authorize('create', Payment::class);
 
         $validated = $request->validate([
-            'shipment_id' => ['required', 'exists:shipments,id'],
+            'tracking_number' => ['required', 'string', 'exists:shipments,tracking_number'],
             'customer_id' => ['nullable', 'exists:customers,id'],
             'method' => ['required', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet'])],
             'amount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
         ]);
 
+        $shipment = Shipment::where('tracking_number', $validated['tracking_number'])->firstOrFail();
+
         $payment = Payment::query()->create([
-            ...$validated,
+            'shipment_id' => $shipment->id,
+            'customer_id' => $validated['customer_id'] ?? $shipment->customer_id,
+            'method' => $validated['method'],
+            'amount' => $validated['amount'],
+            'notes' => $validated['notes'],
             'status' => 'pending',
             'processed_by' => $request->user()?->id,
         ]);
@@ -136,7 +144,7 @@ class PaymentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Payment $payment, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService, ApprovalWorkflowService $approvalWorkflowService)
+    public function update(Request $request, Payment $payment, AuditLogService $auditLogService, OperationalIssueService $operationalIssueService, ApprovalWorkflowService $approvalWorkflowService, ShipmentService $shipmentService)
     {
         $this->authorize('update', $payment);
         $actor = $request->user();
@@ -230,6 +238,10 @@ class PaymentController extends Controller
             $payment->fresh()->only(['status', 'method', 'notes']),
             'Payment diperbarui.'
         );
+
+        if (isset($validated['status'])) {
+            $shipmentService->syncPaymentStatus($payment->shipment, $payment->status);
+        }
 
         return response()->json([
             'message' => 'Payment berhasil diperbarui.',

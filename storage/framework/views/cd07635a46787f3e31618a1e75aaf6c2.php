@@ -8,6 +8,9 @@
 <?php $attributes = $attributes->except(\App\View\Components\AppLayout::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
+    <?php $__env->startPush('scripts'); ?>
+    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="<?php echo e(config('services.midtrans.client_key')); ?>"></script>
+    <?php $__env->stopPush(); ?>
     <style>
         .dashboard-container {
             padding: 1.5rem;
@@ -424,19 +427,93 @@
                     <small class="text-muted fw-bold text-uppercase">Data Intelligence Cabang</small>
                 </div>
             </div>
-            <div class="row g-4">
-                <?php $__currentLoopData = [
-                    ['route' => 'reports.summary', 'icon' => 'bi-file-earmark-bar-graph-fill', 'color' => '#4F46E5', 'bg' => '#EEF2FF', 'title' => 'Ringkasan Ops'],
-                    ['route' => 'reports.daily-reconciliation', 'icon' => 'bi-clipboard2-data-fill', 'color' => '#059669', 'bg' => '#ECFDF5', 'title' => 'Rekonsiliasi Harian'],
-                    ['route' => 'reports.branch-performance', 'icon' => 'bi-building-up', 'color' => '#0061FF', 'bg' => '#EBF3FF', 'title' => 'Kinerja Cabang'],
-                ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $report): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+
+            
+            <div class="row g-4" id="reports-grid">
                 <div class="col-md-4">
-                    <a href="<?php echo e(route($report['route'])); ?>" class="card-pro p-4 d-flex align-items-center gap-3 text-decoration-none text-dark">
-                        <div class="p-3 rounded-4" style="background:<?php echo e($report['bg']); ?>; color:<?php echo e($report['color']); ?>;"><i class="bi <?php echo e($report['icon']); ?> fs-4"></i></div>
-                        <div class="fw-bold"><?php echo e($report['title']); ?></div>
+                    <a href="javascript:void(0)" onclick="switchReportView('reports-summary')" class="card-pro p-4 d-flex align-items-center gap-3 text-decoration-none text-dark">
+                        <div class="p-3 rounded-4" style="background:#EEF2FF; color:#4F46E5;"><i class="bi bi-file-earmark-bar-graph-fill fs-4"></i></div>
+                        <div><div class="small fw-bold text-muted">OPERASIONAL</div><div class="fw-bold">Ringkasan Ops</div></div>
                     </a>
                 </div>
-                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                <div class="col-md-4">
+                    <a href="javascript:void(0)" onclick="switchReportView('reports-courier')" class="card-pro p-4 d-flex align-items-center gap-3 text-decoration-none text-dark">
+                        <div class="p-3 rounded-4" style="background:#F0F9FF; color:#0EA5E9;"><i class="bi bi-person-badge-fill fs-4"></i></div>
+                        <div><div class="small fw-bold text-muted">SUMBER DAYA</div><div class="fw-bold">Kinerja Kurir</div></div>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="javascript:void(0)" onclick="switchReportView('reports-payments')" class="card-pro p-4 d-flex align-items-center gap-3 text-decoration-none text-dark">
+                        <div class="p-3 rounded-4" style="background:#FEF2F2; color:#DC2626;"><i class="bi bi-credit-card-fill fs-4"></i></div>
+                        <div><div class="small fw-bold text-muted">PEMBAYARAN</div><div class="fw-bold">Buku Kas</div></div>
+                    </a>
+                </div>
+            </div>
+
+            
+            <div id="reports-summary" class="report-sub-view d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <button class="btn btn-light rounded-pill px-3 fw-bold shadow-sm" onclick="backToReports()"><i class="bi bi-arrow-left me-2"></i>Kembali</button>
+                    <div class="d-flex gap-2">
+                        <input type="date" id="report-summary-from" class="form-control form-control-sm rounded-pill px-3 border-0 shadow-sm" style="background:#F1F5F9; width:150px;" onchange="loadReportData('summary')">
+                        <input type="date" id="report-summary-until" class="form-control form-control-sm rounded-pill px-3 border-0 shadow-sm" style="background:#F1F5F9; width:150px;" onchange="loadReportData('summary')">
+                        <button class="btn btn-primary btn-sm rounded-pill px-3 fw-bold" onclick="loadReportData('summary')">Filter</button>
+                        <button class="btn btn-dark btn-sm rounded-pill px-3 fw-bold" onclick="handleSummaryExport()">
+                            <i class="bi bi-download me-1"></i>Export
+                        </button>
+                    </div>
+                </div>
+                <div class="row g-4 mb-4" id="summary-metrics-container">
+                </div>
+                <div class="card-pro p-4">
+                    <h6 class="fw-bold mb-3">Statistik Operasional Cabang</h6>
+                    <div id="summary-stats-container">
+                        <div class="text-center py-5 text-muted small italic">Memuat data...</div>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div id="reports-courier" class="report-sub-view d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <button class="btn btn-light rounded-pill px-3 fw-bold shadow-sm" onclick="backToReports()"><i class="bi bi-arrow-left me-2"></i>Kembali</button>
+                    <div class="d-flex gap-2">
+                        <input type="date" id="report-courier-from" class="form-control form-control-sm rounded-pill px-3 border-0 shadow-sm" style="background:#F1F5F9; width:150px;" onchange="loadReportData('courier')">
+                        <input type="date" id="report-courier-until" class="form-control form-control-sm rounded-pill px-3 border-0 shadow-sm" style="background:#F1F5F9; width:150px;" onchange="loadReportData('courier')">
+                        <button class="btn btn-primary btn-sm rounded-pill px-3 fw-bold" onclick="loadReportData('courier')">Filter</button>
+                    </div>
+                </div>
+                <div class="card-pro p-4">
+                    <div class="table-responsive">
+                        <table class="table-modern">
+                            <thead>
+                                <tr>
+                                    <th>Kurir</th>
+                                    <th>Total Shipment</th>
+                                    <th>Selesai (Delivered)</th>
+                                    <th>Success Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-courier-body">
+                                <tr><td colspan="4" class="text-center py-5">Memuat data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div id="reports-payments" class="report-sub-view d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <button class="btn btn-light rounded-pill px-3 fw-bold shadow-sm" onclick="backToReports()"><i class="bi bi-arrow-left me-2"></i>Kembali</button>
+                    <div class="d-flex gap-2">
+                        <input type="date" id="report-payments-from" class="form-control form-control-sm rounded-pill px-3 border-0 shadow-sm" style="background:#F1F5F9; width:150px;" onchange="loadReportData('payments')">
+                        <input type="date" id="report-payments-until" class="form-control form-control-sm rounded-pill px-3 border-0 shadow-sm" style="background:#F1F5F9; width:150px;" onchange="loadReportData('payments')">
+                        <button class="btn btn-primary btn-sm rounded-pill px-3 fw-bold" onclick="loadReportData('payments')">Filter</button>
+                    </div>
+                </div>
+                <div class="row g-4" id="report-payments-body">
+                </div>
             </div>
         </div>
     </div>
@@ -496,6 +573,10 @@
                     titleEl.innerText = config[viewId][0];
                     subtitleEl.innerText = config[viewId][1];
                 }
+
+                if (viewId === 'view-reports') {
+                    backToReports();
+                }
             };
 
             window.setApprovalFilter = (key, value, el) => {
@@ -533,28 +614,38 @@
             const loadOverviewData = async () => {
                 try {
                     const { data } = await axios.get('/dashboard/data');
-                    document.getElementById('metric-shipments').innerText = data.shipments_today;
-                    document.getElementById('metric-revenue').innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.revenue_total);
-                    document.getElementById('metric-approvals').innerText = data.outstanding_payments;
-                    document.getElementById('metric-errors').innerText = data.service_reliability.critical_error_count;
+                    const mShipments = document.getElementById('metric-shipments');
+                    if (mShipments) mShipments.innerText = data.shipments_today || 0;
+                    const mRevenue = document.getElementById('metric-revenue');
+                    if (mRevenue) mRevenue.innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.revenue_total || 0);
+                    const mApprovals = document.getElementById('metric-approvals');
+                    if (mApprovals) mApprovals.innerText = data.outstanding_payments || 0;
+                    const mErrors = document.getElementById('metric-errors');
+                    if (mErrors) mErrors.innerText = data.service_reliability?.critical_error_count || 0;
 
-                    document.getElementById('recent-activity-body').innerHTML = (data.trackings_recent || []).map(t => `
-                        <tr>
-                            <td class="text-muted small">${escapeHtml(new Date(t.event_at).toLocaleTimeString())}</td>
-                            <td><span class="badge bg-primary-light text-primary rounded-pill px-2" style="font-size:0.7rem">${escapeHtml(t.status.name)}</span></td>
-                            <td><small class="fw-bold">${escapeHtml(t.shipment.tracking_number)}</small></td>
-                        </tr>
-                    `).join('') || '<tr><td colspan="3" class="text-center py-3">Belum ada aktivitas.</td></tr>';
+                    const activityBody = document.getElementById('recent-activity-body');
+                    if (activityBody) {
+                        activityBody.innerHTML = (data.trackings_recent || []).map(t => `
+                            <tr>
+                                <td class="text-muted small">${escapeHtml(new Date(t.event_at).toLocaleTimeString())}</td>
+                                <td><span class="badge bg-primary-light text-primary rounded-pill px-2" style="font-size:0.7rem">${escapeHtml(t.status?.name || 'Unknown')}</span></td>
+                                <td><small class="fw-bold">${escapeHtml(t.shipment?.tracking_number || '-')}</small></td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="3" class="text-center py-3">Belum ada aktivitas.</td></tr>';
+                    }
 
-                    document.getElementById('integration-health-list').innerHTML = (data.service_reliability.integration_statuses || []).map(s => `
-                        <div class="d-flex justify-content-between align-items-center p-3 rounded-4 bg-light border shadow-sm">
-                            <div class="d-flex align-items-center gap-2">
-                                <div style="width:10px; height:10px; border-radius:50%; background:${s.status === 'healthy' ? '#10B981' : '#F59E0B'}"></div>
-                                <span class="fw-bold text-uppercase small" style="font-size:0.7rem">${escapeHtml(s.service_name)}</span>
+                    const integrationList = document.getElementById('integration-health-list');
+                    if (integrationList) {
+                        integrationList.innerHTML = (data.service_reliability?.integration_statuses || []).map(s => `
+                            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 bg-light border shadow-sm">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div style="width:10px; height:10px; border-radius:50%; background:${s.status === 'healthy' ? '#10B981' : '#F59E0B'}"></div>
+                                    <span class="fw-bold text-uppercase small" style="font-size:0.7rem">${escapeHtml(s.service_name)}</span>
+                                </div>
+                                <span class="badge bg-white text-dark border rounded-pill small">${escapeHtml(s.success_count)} Transaksi</span>
                             </div>
-                            <span class="badge bg-white text-dark border rounded-pill small">${escapeHtml(s.success_count)} Transaksi</span>
-                        </div>
-                    `).join('');
+                        `).join('');
+                    }
 
                     if (data.shipment_statuses) {
                         const sel = document.getElementById('filter-shipment-status');
@@ -834,29 +925,95 @@
 
         // Approval Handlers
         async function handleApproveTask(id) {
-            const { value: note } = await Swal.fire({ 
-                title: 'Setujui Request?', 
-                input: 'text', 
-                showCancelButton: true, 
-                confirmButtonColor: '#10B981',
-                confirmButtonText: 'Setujui',
+            Swal.fire({
+                title: 'Setujui Request?',
+                text: "Tindakan ini akan menerapkan perubahan yang diajukan.",
+                input: 'text',
+                inputPlaceholder: 'Tambahkan catatan (opsional)...',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#6366F1',
+                confirmButtonText: 'Ya, Approve!',
+                cancelButtonText: 'Batal',
                 customClass: { popup: 'rounded-4' }
-            });
-            if (note !== undefined) {
-                try { 
-                    await axios.post(`/approvals/tasks/${id}/approve`, { note }); 
-                    Swal.fire({ title: 'Success', text: 'Request disetujui.', icon: 'success', confirmButtonColor: '#6366F1' }).then(() => loadViewData('view-approvals')); 
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    try {
+                        Swal.fire({
+                            title: 'Memproses...',
+                            allowOutsideClick: false,
+                            didOpen: () => Swal.showLoading()
+                        });
+                        await axios.post(`/approvals/tasks/${id}/approve`, { note: result.value });
+                        Swal.fire({
+                            title: 'Berhasil!',
+                            text: 'Request telah disetujui.',
+                            icon: 'success',
+                            confirmButtonColor: '#6366F1',
+                            customClass: { popup: 'rounded-4' }
+                        });
+                        loadViewData('view-approvals', 1);
+                    } catch (error) { 
+                        Swal.fire({
+                            title: 'Gagal!',
+                            text: error.response?.data?.message || 'Gagal memproses approval.',
+                            icon: 'error',
+                            confirmButtonColor: '#6366F1',
+                            customClass: { popup: 'rounded-4' }
+                        });
+                    }
                 }
-                catch (e) { Swal.fire('Error', 'Gagal memproses.', 'error'); }
-            }
+            });
         }
 
         async function handleRejectTask(id) {
-            const { value: reason } = await Swal.fire({ title: 'Tolak Request?', input: 'text', showCancelButton: true, confirmButtonColor: '#DC2626' });
-            if (reason) {
-                try { await axios.post(`/approvals/tasks/${id}/reject`, { reason }); Swal.fire('Success', 'Request ditolak.', 'success').then(() => loadViewData('view-approvals')); }
-                catch (e) { Swal.fire('Error', 'Gagal memproses.', 'error'); }
-            }
+            Swal.fire({
+                title: 'Tolak Request?',
+                text: "Berikan alasan penolakan.",
+                input: 'text',
+                inputAttributes: { required: 'true' },
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#DC2626',
+                confirmButtonText: 'Ya, Tolak!',
+                cancelButtonText: 'Batal',
+                customClass: { popup: 'rounded-4' }
+            }).then(async (result) => {
+                if (result.isConfirmed && result.value) {
+                    try {
+                        Swal.fire({
+                            title: 'Memproses...',
+                            allowOutsideClick: false,
+                            didOpen: () => Swal.showLoading()
+                        });
+                        await axios.post(`/approvals/tasks/${id}/reject`, { reason: result.value });
+                        Swal.fire({
+                            title: 'Berhasil!',
+                            text: 'Request ditolak.',
+                            icon: 'success',
+                            confirmButtonColor: '#6366F1',
+                            customClass: { popup: 'rounded-4' }
+                        });
+                        loadViewData('view-approvals', 1);
+                    } catch (error) { 
+                        Swal.fire({
+                            title: 'Gagal!',
+                            text: 'Gagal menolak request.',
+                            icon: 'error',
+                            confirmButtonColor: '#6366F1',
+                            customClass: { popup: 'rounded-4' }
+                        });
+                    }
+                } else if (result.isConfirmed) { 
+                    Swal.fire({
+                        title: 'Peringatan',
+                        text: 'Alasan penolakan wajib diisi.',
+                        icon: 'warning',
+                        confirmButtonColor: '#6366F1',
+                        customClass: { popup: 'rounded-4' }
+                    });
+                }
+            });
         }
 
         async function handleAddRateCard() {
@@ -1394,8 +1551,8 @@
                 title: 'Tambah Payment Baru',
                 html: `
                     <div class="text-start">
-                        <label class="small fw-bold mb-1">ID Shipment</label>
-                        <input id="swal-ship-id" class="form-control mb-3" type="number" placeholder="Contoh: 12">
+                        <label class="small fw-bold mb-1">No. Resi (Tracking #)</label>
+                        <input id="swal-tracking-number" class="form-control mb-3" type="text" placeholder="Contoh: EXP-12345678">
                         <label class="small fw-bold mb-1">Metode</label>
                         <select id="swal-method" class="form-select mb-3">
                             <option value="cash">CASH</option>
@@ -1403,18 +1560,24 @@
                             <option value="e_wallet">E-WALLET</option>
                         </select>
                         <label class="small fw-bold mb-1">Jumlah (Rp)</label>
-                        <input id="swal-amount" class="form-control mb-3" type="number">
+                        <input id="swal-amount" class="form-control mb-3" type="number" placeholder="0">
                         <label class="small fw-bold mb-1">Notes</label>
-                        <input id="swal-notes" class="form-control mb-3">
+                        <textarea id="swal-notes" class="form-control mb-3" rows="2"></textarea>
                     </div>
                 `,
                 showCancelButton: true,
                 confirmButtonText: 'Simpan Payment',
+                confirmButtonColor: '#6366F1',
                 preConfirm: () => {
+                    const tracking = document.getElementById('swal-tracking-number').value;
+                    const amount = document.getElementById('swal-amount').value;
+                    if (!tracking) return Swal.showValidationMessage('No. Resi wajib diisi!');
+                    if (!amount || amount <= 0) return Swal.showValidationMessage('Jumlah pembayaran tidak valid!');
+                    
                     return {
-                        shipment_id: document.getElementById('swal-ship-id').value,
+                        tracking_number: tracking,
                         method: document.getElementById('swal-method').value,
-                        amount: document.getElementById('swal-amount').value,
+                        amount: amount,
                         notes: document.getElementById('swal-notes').value
                     }
                 }
@@ -1437,46 +1600,63 @@
                     title: 'Edit Payment',
                     html: `
                         <div class="text-start">
-                            <label class="small fw-bold mb-1">Status</label>
-                            <select id="swal-status" class="form-select mb-3">
-                                <option value="pending" ${p.status === 'pending' ? 'selected' : ''}>PENDING</option>
-                                <option value="settlement" ${p.status === 'settlement' ? 'selected' : ''}>SETTLEMENT (SENSITIVE)</option>
-                                <option value="failed" ${p.status === 'failed' ? 'selected' : ''}>FAILED</option>
-                                <option value="cancel" ${p.status === 'cancel' ? 'selected' : ''}>CANCEL</option>
-                                <option value="refund" ${p.status === 'refund' ? 'selected' : ''}>REFUND (SENSITIVE)</option>
-                            </select>
-                            <label class="small fw-bold mb-1">Metode</label>
-                            <select id="swal-method" class="form-select mb-3">
+                            <p class="small text-muted mb-3"><i class="bi bi-shield-lock me-1"></i> Manager dapat merubah data pembayaran secara langsung (Manual Override).</p>
+                            
+                            <label class="small fw-bold text-uppercase" style="font-size:0.65rem; letter-spacing:0.5px;">Metode Pembayaran</label>
+                            <select id="swal-method" class="form-select mb-3 rounded-3 shadow-sm border-0 bg-light fw-bold">
                                 <option value="cash" ${p.method === 'cash' ? 'selected' : ''}>CASH</option>
                                 <option value="transfer" ${p.method === 'transfer' ? 'selected' : ''}>TRANSFER</option>
                                 <option value="e_wallet" ${p.method === 'e_wallet' ? 'selected' : ''}>E-WALLET</option>
                                 <option value="midtrans" ${p.method === 'midtrans' ? 'selected' : ''}>MIDTRANS</option>
                             </select>
-                            <label class="small fw-bold mb-1">Jumlah (Rp)</label>
-                            <input id="swal-amount" type="number" class="form-control mb-3" value="${p.amount || 0}">
-                            <label class="small fw-bold mb-1">Notes / Alasan</label>
-                            <input id="swal-notes" class="form-control mb-3" value="${escapeHtml(p.notes || '')}">
+
+                            <label class="small fw-bold text-uppercase" style="font-size:0.65rem; letter-spacing:0.5px;">Status</label>
+                            <select id="swal-status" class="form-select mb-3 rounded-3 shadow-sm border-0 bg-light fw-bold">
+                                <option value="pending" ${p.status === 'pending' ? 'selected' : ''}>PENDING</option>
+                                <option value="settlement" ${p.status === 'settlement' ? 'selected' : ''}>SETTLEMENT (PAID)</option>
+                                <option value="failed" ${p.status === 'failed' ? 'selected' : ''}>FAILED</option>
+                                <option value="cancel" ${p.status === 'cancel' ? 'selected' : ''}>CANCEL</option>
+                                <option value="refund" ${p.status === 'refund' ? 'selected' : ''}>REFUND</option>
+                            </select>
+
+                            <label class="small fw-bold text-uppercase" style="font-size:0.65rem; letter-spacing:0.5px;">Jumlah (Rp)</label>
+                            <div class="input-group mb-3 shadow-sm rounded-3 overflow-hidden">
+                                <span class="input-group-text border-0 bg-light fw-bold">Rp</span>
+                                <input id="swal-amount" type="number" class="form-control border-0 bg-light fw-bold" value="${p.amount || 0}">
+                            </div>
+
+                            <label class="small fw-bold text-uppercase" style="font-size:0.65rem; letter-spacing:0.5px;">Alasan Perubahan / Catatan</label>
+                            <textarea id="swal-notes" class="form-control rounded-3 shadow-sm border-0 bg-light" rows="3" placeholder="Berikan alasan perubahan untuk audit log...">${escapeHtml(p.notes || '')}</textarea>
                         </div>
                     `,
                     showCancelButton: true,
-                    confirmButtonText: 'Update Payment',
+                    confirmButtonText: '<i class="bi bi-save me-2"></i>Simpan Perubahan',
+                    confirmButtonColor: '#6366F1',
+                    cancelButtonText: 'Batal',
+                    customClass: { popup: 'rounded-4 border-0' },
                     preConfirm: () => {
+                        const notes = document.getElementById('swal-notes').value;
+                        if (!notes) {
+                            Swal.showValidationMessage('Alasan perubahan wajib diisi untuk keperluan audit!');
+                            return false;
+                        }
                         return {
                             status: document.getElementById('swal-status').value,
                             method: document.getElementById('swal-method').value,
                             amount: document.getElementById('swal-amount').value,
-                            notes: document.getElementById('swal-notes').value,
+                            notes: notes,
                             manual_override: true,
-                            manual_override_reason: document.getElementById('swal-notes').value
+                            manual_override_reason: notes
                         }
                     }
                 });
 
                 if (formValues) {
+                    Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                     const res = await axios.put(`/payments/${id}`, formValues);
-                    const msg = res.status === 202 ? 'Perubahan sensitif menunggu approval admin/manager.' : 'Payment diperbarui.';
+                    const msg = res.status === 202 ? 'Perubahan sensitif menunggu approval admin.' : 'Data pembayaran telah diperbarui.';
                     Swal.fire({
-                        title: 'Berhasil',
+                        title: 'Berhasil!',
                         text: msg,
                         icon: 'success',
                         confirmButtonColor: '#6366F1',
@@ -1484,7 +1664,12 @@
                     }).then(() => loadViewData('view-payments'));
                 }
             } catch (e) {
-                Swal.fire('Error', 'Gagal memproses data.', 'error');
+                Swal.fire({
+                    title: 'Error',
+                    text: e.response?.data?.message || 'Gagal memperbarui payment.',
+                    icon: 'error',
+                    customClass: { popup: 'rounded-4' }
+                });
             }
         }
 
@@ -1568,7 +1753,7 @@
                     didOpen: () => Swal.showLoading()
                 });
 
-                const { data } = await axios.post(`/payments/midtrans/token/${shipmentId}`);
+                const { data } = await axios.post(`/payments/${shipmentId}/midtrans/snap-token`);
                 
                 if (window.snap) {
                     window.snap.pay(data.data.snap_token, {
@@ -1590,6 +1775,166 @@
                 Swal.fire('Error', e.response?.data?.message || 'Gagal menyiapkan pembayaran.', 'error');
             }
         }
+
+        // --- REPORT LOGIC ---
+        window.switchReportView = (subViewId) => {
+            document.getElementById('reports-grid').classList.add('d-none');
+            document.querySelectorAll('.report-sub-view').forEach(v => v.classList.add('d-none'));
+            const target = document.getElementById(subViewId);
+            if (target) target.classList.remove('d-none');
+            
+            if (subViewId === 'reports-summary') loadReportData('summary');
+            if (subViewId === 'reports-courier') loadReportData('courier');
+            if (subViewId === 'reports-payments') loadReportData('payments');
+        };
+
+        window.backToReports = () => {
+            document.querySelectorAll('.report-sub-view').forEach(v => v.classList.add('d-none'));
+            document.getElementById('reports-grid').classList.remove('d-none');
+        };
+
+        window.loadReportData = async (type) => {
+            let endpoint = '';
+            let from = '';
+            let until = '';
+
+            try {
+                if (type === 'summary') {
+                    from = document.getElementById('report-summary-from').value;
+                    until = document.getElementById('report-summary-until').value;
+                    endpoint = `/reports/summary?from=${from}&until=${until}`;
+                    const { data: res } = await axios.get(endpoint);
+                    const stats = res.data;
+                    
+                    document.getElementById('summary-metrics-container').innerHTML = `
+                        <div class="col-md-3">
+                            <div class="card-pro p-4 border-start border-primary border-4 shadow-sm">
+                                <div class="small fw-bold text-muted mb-1">TOTAL SHIPMENT</div>
+                                <div class="h4 fw-bold m-0">${stats.total_shipments}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card-pro p-4 border-start border-success border-4 shadow-sm">
+                                <div class="small fw-bold text-muted mb-1">REVENUE (SETTLED)</div>
+                                <div class="h4 fw-bold m-0">Rp${new Intl.NumberFormat('id-ID').format(stats.total_revenue)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card-pro p-4 border-start border-warning border-4 shadow-sm">
+                                <div class="small fw-bold text-muted mb-1">PENDING REV</div>
+                                <div class="h4 fw-bold m-0">Rp${new Intl.NumberFormat('id-ID').format(stats.pending_revenue)}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card-pro p-4 border-start border-info border-4 shadow-sm">
+                                <div class="small fw-bold text-muted mb-1">ON TIME RATE</div>
+                                <div class="h4 fw-bold m-0">${stats.on_time_rate}%</div>
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('summary-stats-container').innerHTML = `
+                        <div class="row g-3">
+                            <div class="col-6 col-md-3">
+                                <div class="p-3 bg-light rounded-4">
+                                    <div class="small text-muted mb-1">Delivered</div>
+                                    <div class="fw-bold text-success">${stats.delivered_count}</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="p-3 bg-light rounded-4">
+                                    <div class="small text-muted mb-1">Cancelled</div>
+                                    <div class="fw-bold text-danger">${stats.cancelled_count}</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="p-3 bg-light rounded-4">
+                                    <div class="small text-muted mb-1">Returned</div>
+                                    <div class="fw-bold text-warning">${stats.returned_count}</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="p-3 bg-light rounded-4">
+                                    <div class="small text-muted mb-1">Manual Override</div>
+                                    <div class="fw-bold text-primary">${stats.manual_override_count}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (type === 'courier') {
+                    from = document.getElementById('report-courier-from').value;
+                    until = document.getElementById('report-courier-until').value;
+                    endpoint = `/reports/courier-performance?from=${from}&until=${until}`;
+                    const { data: res } = await axios.get(endpoint);
+                    const couriers = res.data;
+                    
+                    document.getElementById('report-courier-body').innerHTML = couriers.map(c => {
+                        const rate = c.shipments_total > 0 ? Math.round((c.completed_total / c.shipments_total) * 100) : 0;
+                        return `
+                            <tr>
+                                <td><div class="fw-bold">${escapeHtml(c.name)}</div></td>
+                                <td><div class="fw-bold text-dark">${c.shipments_total}</div></td>
+                                <td><div class="fw-bold text-success">${c.completed_total}</div></td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height:6px;">
+                                            <div class="progress-bar bg-primary" style="width: ${rate}%"></div>
+                                        </div>
+                                        <span class="small fw-bold">${rate}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('') || '<tr><td colspan="4" class="text-center py-4">Tidak ada data kurir.</td></tr>';
+                } else if (type === 'payments') {
+                    from = document.getElementById('report-payments-from').value;
+                    until = document.getElementById('report-payments-until').value;
+                    endpoint = `/reports/payment-overview?from=${from}&until=${until}`;
+                    const { data: res } = await axios.get(endpoint);
+                    const p = res.data;
+                    
+                    document.getElementById('report-payments-body').innerHTML = `
+                        <div class="col-md-6 col-xl-3">
+                            <div class="card-pro p-4 bg-success text-white shadow-lg border-0 position-relative overflow-hidden">
+                                <div class="small opacity-75 mb-1">TOTAL SETTLED</div>
+                                <div class="h3 fw-bold m-0">Rp${new Intl.NumberFormat('id-ID').format(p.settlement)}</div>
+                                <i class="bi bi-check-circle-fill opacity-25 position-absolute end-0 bottom-0 mb-3 me-3 fs-1"></i>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-xl-3">
+                            <div class="card-pro p-4 bg-warning text-white shadow-lg border-0 position-relative overflow-hidden">
+                                <div class="small opacity-75 mb-1">PENDING AMOUNT</div>
+                                <div class="h3 fw-bold m-0">Rp${new Intl.NumberFormat('id-ID').format(p.pending)}</div>
+                                <i class="bi bi-clock-fill opacity-25 position-absolute end-0 bottom-0 mb-3 me-3 fs-1"></i>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-xl-3">
+                            <div class="card-pro p-4 bg-danger text-white shadow-lg border-0 position-relative overflow-hidden">
+                                <div class="small opacity-75 mb-1">FAILED/CANCEL</div>
+                                <div class="h3 fw-bold m-0">Rp${new Intl.NumberFormat('id-ID').format(p.failed)}</div>
+                                <i class="bi bi-x-circle-fill opacity-25 position-absolute end-0 bottom-0 mb-3 me-3 fs-1"></i>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-xl-3">
+                            <div class="card-pro p-4 bg-primary text-white shadow-lg border-0 position-relative overflow-hidden">
+                                <div class="small opacity-75 mb-1">TOTAL REFUND</div>
+                                <div class="h3 fw-bold m-0">Rp${new Intl.NumberFormat('id-ID').format(p.refund)}</div>
+                                <i class="bi bi-arrow-counterclockwise opacity-25 position-absolute end-0 bottom-0 mb-3 me-3 fs-1"></i>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                console.error(e);
+                Swal.fire('Error', 'Gagal memuat data laporan.', 'error');
+            }
+        };
+
+        window.handleSummaryExport = () => {
+            const from = document.getElementById('report-summary-from').value;
+            const until = document.getElementById('report-summary-until').value;
+            window.location.href = `/reports/summary/export?from=${from}&until=${until}`;
+        };
     </script>
     <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="<?php echo e(config('services.midtrans.client_key')); ?>"></script>
  <?php echo $__env->renderComponent(); ?>

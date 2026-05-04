@@ -278,6 +278,7 @@ class ShipmentService
             'status_id' => $status->id,
             'current_status_at' => now(),
             'delivered_at' => $statusCode === 'delivered' ? now() : $shipment->delivered_at,
+            'notes' => $notes ?? $shipment->notes,
         ]);
 
         $shipment->trackings()->create([
@@ -387,6 +388,14 @@ class ShipmentService
 
         $shipment = DB::transaction(function () use ($payload, $pendingStatusId, $actor, $data) {
             $shipment = Shipment::query()->create($payload);
+
+            // Create Shipment Item
+            $shipment->items()->create([
+                'item_name' => $data['item_name'] ?? 'Paket',
+                'quantity' => $data['total_items'] ?? 1,
+                'weight_kg' => $data['total_weight_kg'] ?? 0,
+                'description' => $data['notes'] ?? null,
+            ]);
 
             $shipment->loadMissing('branch');
 

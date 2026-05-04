@@ -150,6 +150,7 @@ class ExpeditionCoreSeeder extends Seeder
             ['name' => 'Kurir Jakarta', 'email' => 'kurir.jakarta@kondangekspedisi.test', 'role' => 'courier', 'branch_code' => 'JKT-HQ'],
             ['name' => 'Kurir Surabaya', 'email' => 'kurir.surabaya@kondangekspedisi.test', 'role' => 'courier', 'branch_code' => 'SBY-01'],
             ['name' => 'Kurir Bandung', 'email' => 'kurir.bandung@kondangekspedisi.test', 'role' => 'courier', 'branch_code' => 'BDG-01'],
+            ['name' => 'Kasir Utama', 'email' => 'kasir@kondangekspedisi.test', 'role' => 'kasir', 'branch_code' => 'JKT-HQ'],
             ['name' => 'Manajer Operasional', 'email' => 'wisnubgalih4@gmail.com', 'role' => 'manager', 'branch_code' => 'JKT-HQ'],
             ['name' => 'Pelanggan Demo', 'email' => 'pelanggan.demo@kondangekspedisi.test', 'role' => 'customer', 'branch_code' => 'JKT-HQ'],
         ];

@@ -251,6 +251,8 @@ class DashboardAnalyticsService
                 ->limit(10)
                 ->get(),
             'shipment_statuses' => \App\Models\ShipmentStatus::query()->get(['id', 'name', 'code']),
+            'branches' => \App\Models\Branch::query()->where('is_active', true)->get(['id', 'name', 'code']),
+            'couriers' => \App\Models\User::query()->where('role', 'courier')->get(['id', 'name', 'email']),
             'financial_control' => $this->financialControlPayload($user->branch_id),
             'service_reliability' => $this->serviceReliabilityPayload($user->branch_id),
             'permissions' => [

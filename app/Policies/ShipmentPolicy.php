@@ -100,8 +100,8 @@ class ShipmentPolicy
 
     public function delete(User $user, Shipment $shipment): bool
     {
-        // Hanya manager di cabangnya yang bisa delete
-        if ($user->role === 'manager') {
+        // Manager & Kasir bisa delete di cabangnya
+        if (in_array($user->role, ['manager', 'kasir'], true)) {
             return (int) $shipment->branch_id === (int) $user->branch_id;
         }
 

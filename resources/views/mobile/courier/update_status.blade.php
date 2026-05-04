@@ -3,144 +3,218 @@
 @section('content')
 <div class="space-y-8 animate-slide-up pb-32" x-data="updateStatusForm()">
     <!-- Header with Back Button -->
-    <div class="flex items-center gap-4">
-        <a href="{{ route('courier.tasks') }}" class="w-12 h-12 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center shadow-sm text-slate-400">
+    <div class="flex items-center gap-4 px-1">
+        <a href="{{ route('courier.tasks') }}" class="w-12 h-12 glass rounded-2xl flex items-center justify-center shadow-sm text-blue-600 tap-scale">
             <i class="bi bi-chevron-left fs-5"></i>
         </a>
-        <h2 class="text-xl font-extrabold tracking-tight">Update Status</h2>
+        <h2 class="text-xl font-black tracking-tight">Update Status</h2>
     </div>
 
-    <!-- Shipment Info Summary -->
-    <div class="bg-primary-600 rounded-4xl p-8 text-white relative overflow-hidden shadow-2xl shadow-primary-100 dark:shadow-none">
-        <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-        <div class="relative z-10 space-y-2">
-            <p class="text-[10px] font-black text-primary-200 uppercase tracking-widest">Tracking Number</p>
-            <h3 class="text-3xl font-black uppercase italic">{{ $shipment->tracking_number }}</h3>
-            <p class="text-sm font-bold text-primary-100">{{ $shipment->recipient_name }} • {{ $shipment->service_type }}</p>
+    @if ($errors->any())
+        <div class="glass p-6 rounded-[2rem] border-rose-100 bg-rose-50/30">
+            <div class="flex gap-4">
+                <i class="bi bi-exclamation-octagon-fill text-rose-600 fs-4"></i>
+                <div class="space-y-1">
+                    <p class="text-xs font-black uppercase tracking-widest text-rose-600">Terjadi Kesalahan</p>
+                    <ul class="text-xs font-bold text-rose-500/80 list-disc list-inside">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="glass p-6 rounded-[2rem] border-rose-100 bg-rose-50/30">
+            <div class="flex gap-4 text-rose-600">
+                <i class="bi bi-x-circle-fill fs-4"></i>
+                <div class="space-y-1">
+                    <p class="text-xs font-black uppercase tracking-widest">Gagal Update</p>
+                    <p class="text-xs font-bold opacity-80">{{ session('error') }}</p>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Shipment Info Summary (Upgraded) -->
+    <div class="relative group">
+        <div class="absolute inset-0 bg-blue-600 rounded-[2.5rem] blur-2xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
+        <div class="relative bg-blue-600 rounded-[2.5rem] p-8 text-white overflow-hidden shadow-2xl">
+            <div class="absolute -right-16 -top-16 w-48 h-48 bg-blue-500/30 rounded-full blur-[80px]"></div>
+            <div class="relative z-10 space-y-5">
+                <div class="space-y-1">
+                    <p class="text-blue-200/60 text-[10px] font-black uppercase tracking-[0.2em] leading-none">Nomor Resi</p>
+                    <h3 class="text-3xl font-black italic tracking-tighter uppercase leading-none">{{ $shipment->tracking_number }}</h3>
+                </div>
+                <div class="flex items-center gap-3 pt-2">
+                    <div class="px-4 py-1.5 bg-white/10 backdrop-blur-xl rounded-xl border border-white/10">
+                        <span class="text-[9px] font-black uppercase tracking-widest">{{ $shipment->service_type }}</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="text-[9px] font-black text-blue-300 uppercase tracking-widest leading-none mb-1">Penerima</p>
+                        <p class="text-xs font-bold text-white">{{ $shipment->recipient_name }}</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <form action="{{ route('courier.shipments.update', $shipment) }}" method="POST" enctype="multipart/form-data" class="space-y-10">
         @csrf
+        <input type="hidden" name="gps_lat" x-model="gps.lat">
+        <input type="hidden" name="gps_lng" x-model="gps.lng">
 
-        <!-- Barcode Scan -->
-        <div class="space-y-6">
-            <div class="flex items-center gap-2 px-1">
-                <div class="w-1 h-6 bg-primary-600 rounded-full"></div>
-                <h3 class="font-extrabold text-lg uppercase tracking-tight">Verifikasi Paket</h3>
-            </div>
-            
-            <button type="button" @click="startScanner()" class="w-full h-20 bg-white dark:bg-slate-900 rounded-3xl premium-shadow flex items-center justify-center gap-4 font-black text-sm uppercase tracking-widest text-slate-600 dark:text-slate-300 active:scale-95 transition-all border border-slate-100 dark:border-slate-800">
-                <i class="bi bi-qr-code-scan fs-4 text-primary-600"></i>
-                Scan Barcode
-            </button>
-            <div id="reader" x-show="showScanner" class="overflow-hidden rounded-4xl border-4 border-primary-600 bg-black aspect-square mt-4"></div>
-        </div>
-
-        <!-- Status Selection -->
-        <div class="space-y-6">
-            <div class="flex items-center gap-2 px-1">
-                <div class="w-1 h-6 bg-primary-600 rounded-full"></div>
-                <h3 class="font-extrabold text-lg uppercase tracking-tight">Status Baru</h3>
+        <!-- Status Selection (Upgraded Tiles) -->
+        <div class="space-y-4">
+            <div class="flex items-center gap-3 px-1">
+                <div class="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                <h3 class="font-black text-xs uppercase tracking-[0.15em] text-slate-400">Pilih Status Baru</h3>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
                 @php
                     $statusOptions = [
-                        ['code' => 'pickup', 'name' => 'Pick Up', 'icon' => 'bi-box-seam', 'color' => 'blue'],
-                        ['code' => 'in_transit', 'name' => 'In Transit', 'icon' => 'bi-truck', 'color' => 'indigo'],
-                        ['code' => 'out_for_delivery', 'name' => 'Delivery', 'icon' => 'bi-bicycle', 'color' => 'emerald'],
-                        ['code' => 'delivered', 'name' => 'Selesai', 'icon' => 'bi-check2-circle', 'color' => 'emerald'],
-                        ['code' => 'failed', 'name' => 'Gagal', 'icon' => 'bi-exclamation-triangle', 'color' => 'red'],
-                        ['code' => 'returned', 'name' => 'Return', 'icon' => 'bi-arrow-left-right', 'color' => 'orange'],
+                        ['code' => 'picked_up', 'name' => 'Pick Up', 'icon' => 'bi-box-seam'],
+                        ['code' => 'arrived_at_origin', 'name' => 'Tiba Asal', 'icon' => 'bi-geo-alt'],
+                        ['code' => 'departed_from_origin', 'name' => 'Keluar Asal', 'icon' => 'bi-truck-flatbed'],
+                        ['code' => 'in_transit', 'name' => 'In Transit', 'icon' => 'bi-truck'],
+                        ['code' => 'arrived_at_destination', 'name' => 'Tiba Tujuan', 'icon' => 'bi-geo-fill'],
+                        ['code' => 'out_for_delivery', 'name' => 'Delivery', 'icon' => 'bi-bicycle'],
+                        ['code' => 'delivered', 'name' => 'Selesai', 'icon' => 'bi-patch-check-fill'],
+                        ['code' => 'failed_delivery', 'name' => 'Gagal', 'icon' => 'bi-exclamation-triangle-fill'],
+                        ['code' => 'returned', 'name' => 'Return', 'icon' => 'bi-arrow-left-right'],
                     ];
                 @endphp
 
                 @foreach($statusOptions as $opt)
-                    <label class="relative group cursor-pointer">
+                    <label class="relative cursor-pointer tap-scale group">
                         <input type="radio" name="status_code" value="{{ $opt['code'] }}" x-model="form.status_code" class="peer hidden">
-                        <div class="bg-white dark:bg-slate-900 border-2 border-transparent peer-checked:border-primary-600 p-6 rounded-4xl flex flex-col items-center gap-3 premium-shadow transition-all group-active:scale-95 h-full">
-                            <div class="w-12 h-12 bg-slate-50 dark:bg-slate-800 text-slate-400 peer-checked:text-primary-600 rounded-2xl flex items-center justify-center transition-colors">
+                        <div class="glass p-5 rounded-[2rem] flex flex-col items-center gap-3 border-blue-50 peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 transition-all shadow-sm h-full">
+                            <div class="w-12 h-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center text-blue-600 peer-checked:bg-white/20 peer-checked:text-white transition-colors border-none group-hover:scale-110 transition-transform shrink-0">
                                 <i class="bi {{ $opt['icon'] }} fs-4"></i>
                             </div>
-                            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 peer-checked:text-primary-600">{{ $opt['name'] }}</span>
-                        </div>
-                        <div class="absolute top-4 right-4 opacity-0 peer-checked:opacity-100 transition-opacity">
-                            <i class="bi bi-check-circle-fill text-primary-600"></i>
+                            <span class="text-[9px] font-black uppercase tracking-widest leading-none text-center">{{ $opt['name'] }}</span>
                         </div>
                     </label>
                 @endforeach
             </div>
         </div>
 
-        <!-- Evidence & Details -->
-        <div class="space-y-6">
-            <div class="flex items-center gap-2 px-1">
-                <div class="w-1 h-6 bg-primary-600 rounded-full"></div>
-                <h3 class="font-extrabold text-lg uppercase tracking-tight">Bukti Operasional</h3>
+        <!-- Evidence & Details (Modernized) -->
+        <div class="space-y-4">
+            <div class="flex items-center gap-3 px-1">
+                <div class="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                <h3 class="font-black text-xs uppercase tracking-[0.15em] text-slate-400">Bukti Operasional</h3>
             </div>
 
-            <div class="bg-white dark:bg-slate-900 rounded-4xl premium-shadow border border-slate-100 dark:border-slate-800 p-8 space-y-6">
+            <div class="glass p-8 rounded-[2.5rem] space-y-8 border-blue-50">
                 <!-- Photo Upload -->
                 <div class="space-y-4">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Foto Bukti (Opsional)</label>
+                    <div class="flex justify-between items-center ml-1">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Foto Bukti</label>
+                        <span x-show="['delivered', 'failed_delivery', 'returned'].includes(form.status_code)" 
+                              class="text-[9px] font-black text-rose-500 uppercase tracking-widest animate-pulse">Wajib</span>
+                    </div>
                     <div class="relative group">
                         <input type="file" name="proof_photo" accept="image/*" capture="environment" @change="previewImage($event)" class="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer">
-                        <div class="w-full aspect-video bg-slate-50 dark:bg-slate-800 rounded-3xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-700 transition-all overflow-hidden group-hover:bg-slate-100 dark:group-hover:bg-slate-800/80">
+                        <div class="w-full aspect-video bg-slate-50 dark:bg-slate-900/50 rounded-3xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-800 transition-all overflow-hidden relative group-hover:border-blue-300">
                             <template x-if="!imagePreview">
-                                <div class="text-center space-y-2">
-                                    <i class="bi bi-camera fs-1 text-slate-300"></i>
-                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ambil Foto</p>
+                                <div class="text-center space-y-3">
+                                    <div class="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto text-blue-600 shadow-sm border border-slate-100 dark:border-slate-700">
+                                        <i class="bi bi-camera-fill fs-3"></i>
+                                    </div>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ketuk untuk Ambil Foto</p>
                                 </div>
                             </template>
                             <template x-if="imagePreview">
-                                <img :src="imagePreview" class="w-full h-full object-cover">
+                                <div class="w-full h-full relative">
+                                    <img :src="imagePreview" class="w-full h-full object-cover">
+                                    <div class="absolute inset-0 bg-blue-600/20 mix-blend-overlay"></div>
+                                </div>
                             </template>
                         </div>
                     </div>
                 </div>
 
                 <!-- Location & Notes -->
-                <div class="space-y-4">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-5 flex items-center pointer-events-none text-slate-400">
-                            <i class="bi bi-geo-alt"></i>
+                <div class="space-y-5">
+                    <div class="space-y-4">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lokasi & Keterangan</label>
+                        
+                        <!-- Quick Location Selection -->
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            @php
+                                $branchName = $courier->branch ? $courier->branch->name : 'Gudang Hub';
+                                $locations = [$branchName, 'Dalam Perjalanan', 'Rumah Penerima', 'Tetangga/Satpam', 'Kantor Pos'];
+                            @endphp
+                            @foreach($locations as $loc)
+                                <button type="button" @click="form.location = '{{ $loc }}'" 
+                                        class="px-4 py-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl text-[9px] font-black uppercase tracking-widest border border-transparent transition-all"
+                                        :class="form.location === '{{ $loc }}' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'text-slate-400'">
+                                    {{ $loc }}
+                                </button>
+                            @endforeach
                         </div>
-                        <input type="text" name="location" placeholder="Lokasi Terkini" class="w-full bg-slate-50 dark:bg-slate-800 border-none h-14 pl-12 pr-6 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-primary-600">
+
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-6 flex items-center pointer-events-none text-blue-600">
+                                <i class="bi bi-geo-alt-fill fs-5"></i>
+                            </div>
+                            <input type="text" name="location" x-model="form.location" placeholder="Ketik lokasi spesifik..." 
+                                   class="w-full bg-slate-50 dark:bg-slate-900/50 border-none h-16 pl-14 pr-6 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-blue-600 transition-all shadow-inner">
+                        </div>
                     </div>
-                    <textarea name="notes" placeholder="Catatan tambahan (contoh: diterima oleh satpam)" rows="3" class="w-full bg-slate-50 dark:bg-slate-800 border-none p-6 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-primary-600"></textarea>
+
+                    <!-- GPS Status Badge -->
+                    <div class="flex items-center gap-2 px-2">
+                        <div class="w-2 h-2 rounded-full animate-pulse" :class="gps.lat ? 'bg-emerald-500' : 'bg-rose-500'"></div>
+                        <p class="text-[8px] font-black uppercase tracking-widest" :class="gps.lat ? 'text-emerald-600' : 'text-rose-600'">
+                            <span x-text="gps.lat ? 'GPS Locked: ' + gps.lat.toFixed(4) + ', ' + gps.lng.toFixed(4) : 'Menunggu Sinyal GPS...'"></span>
+                        </p>
+                    </div>
+
+                    <textarea name="notes" placeholder="Catatan tambahan (Opsional)..." rows="3" 
+                              class="w-full bg-slate-50 dark:bg-slate-900/50 border-none p-6 rounded-2xl font-bold text-sm focus:ring-2 focus:ring-blue-600 transition-all shadow-inner"></textarea>
                 </div>
             </div>
         </div>
 
-        <!-- Sticky Submit -->
-        <div class="fixed bottom-0 left-0 right-0 p-6 glass border-t border-slate-100 dark:border-slate-800 z-50 rounded-t-4xl">
-            <button type="submit" class="w-full bg-primary-600 text-white font-black h-16 rounded-3xl shadow-2xl shadow-primary-200 dark:shadow-none active:scale-95 transition-all text-sm uppercase tracking-widest">
-                Update Status Paket
+        <!-- Submit Button -->
+        <div class="pb-10 px-1">
+            <button type="submit" 
+                    class="w-full bg-blue-600 text-white font-black h-16 rounded-[2rem] shadow-xl shadow-blue-500/30 tap-scale transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-xs">
+                <span>Konfirmasi Update</span>
+                <i class="bi bi-check-circle-fill fs-5"></i>
             </button>
         </div>
     </form>
 </div>
 
 @push('scripts')
-<script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script>
     function updateStatusForm() {
         return {
-            form: { status_code: '{{ $shipment->status->code }}' },
-            showScanner: false,
+            form: { 
+                status_code: '{{ $shipment->status->code }}',
+                location: ''
+            },
+            gps: { lat: null, lng: null },
             imagePreview: null,
-            startScanner() {
-                this.showScanner = true;
-                const html5QrCode = new Html5Qrcode("reader");
-                html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-                    if (text === "{{ $shipment->tracking_number }}") {
-                        alert("Berhasil Verifikasi!");
-                        html5QrCode.stop();
-                        this.showScanner = false;
-                    }
-                });
+            init() {
+                this.fetchGPS();
+            },
+            fetchGPS() {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition((position) => {
+                        this.gps.lat = position.coords.latitude;
+                        this.gps.lng = position.coords.longitude;
+                    }, (error) => {
+                        console.warn("GPS Access Denied:", error);
+                    }, { enableHighAccuracy: true });
+                }
             },
             previewImage(event) {
                 const file = event.target.files[0];
@@ -151,3 +225,4 @@
 </script>
 @endpush
 @endsection
+

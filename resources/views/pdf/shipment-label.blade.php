@@ -3,335 +3,120 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page {
-            margin: 6mm;
-        }
+        @page { margin: 4mm; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 8px; color: #000; margin: 0; }
+        .label-container { border: 1.5px solid #000; width: 100%; position: relative; }
+        table { width: 100%; border-collapse: collapse; }
+        td { border: 1px solid #000; padding: 4px; vertical-align: top; }
+        
+        .header-logo { color: #2563eb; font-weight: 900; font-size: 14px; text-transform: uppercase; font-style: italic; border: none; }
+        .header-type { font-size: 14px; font-weight: bold; text-align: center; border-left: 1px solid #000; border-right: 1px solid #000; }
+        .header-tracking { font-size: 10px; font-weight: bold; text-align: right; border: none; }
 
-        body {
-            font-family: DejaVu Sans, sans-serif;
-            font-size: 9px;
-            color: #111827;
-            margin: 0;
-        }
+        .barcode-section { text-align: center; padding: 6px; }
+        .barcode-section img { height: 25mm; width: 25mm; margin: 0 auto; }
+        .tracking-number { font-size: 16px; font-weight: 900; letter-spacing: 1px; margin-top: 2px; }
 
-        .sheet {
-            border: 1px solid #111827;
-            padding: 6px;
-        }
+        .address-header { background: #000; color: #fff; font-size: 7px; font-weight: bold; padding: 2px 4px; border: none; }
+        .address-box { height: 28mm; }
+        .bold { font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
 
-        .header {
-            display: table;
-            width: 100%;
-            margin-bottom: 4px;
-            border-bottom: 2px solid #111827;
-            padding-bottom: 4px;
-        }
+        .info-grid td { font-size: 7px; width: 50%; }
+        .cashless-banner { background: #f3f4f6; text-align: center; font-weight: bold; padding: 4px; font-size: 9px; }
+        .cashless-banner span { font-style: italic; font-weight: normal; font-size: 7px; margin-left: 10px; }
 
-        .header .brand,
-        .header .meta {
-            display: table-cell;
-            vertical-align: top;
-        }
+        .items-table th { background: #f9fafb; font-size: 6.5px; text-align: left; padding: 3px; border: 1px solid #000; }
+        .items-table td { font-size: 6.5px; padding: 2px 3px; border: 1px solid #ccc; }
 
-        .header .brand {
-            width: 62%;
-        }
-
-        .brand h1 {
-            margin: 0;
-            font-size: 14px;
-            letter-spacing: 0.08em;
-        }
-
-        .brand .subtitle {
-            margin-top: 2px;
-            color: #4b5563;
-        }
-
-        .header .meta {
-            width: 38%;
-            text-align: right;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 2px 6px;
-            border: 1px solid #111827;
-            font-size: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .tracking {
-            margin-top: 4px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-
-        .barcode-wrap {
-            text-align: center;
-            margin: 4px 0;
-            padding: 4px;
-            border: 1px dashed #9ca3af;
-        }
-
-        .barcode-wrap img {
-            display: block;
-            margin: 0 auto 2px;
-            max-width: 100%;
-            height: 20mm;
-        }
-
-        .grid {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 4px;
-        }
-
-        .grid td,
-        .grid th {
-            border: 1px solid #111827;
-            padding: 3px 4px;
-            vertical-align: top;
-            line-height: 1.2;
-        }
-
-        .section-title {
-            background: #111827;
-            color: #fff;
-            padding: 3px 4px;
-            font-size: 8px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            margin: 0;
-        }
-
-        .muted {
-            color: #6b7280;
-        }
-
-        .details td:first-child {
-            width: 28%;
-            font-weight: bold;
-            background: #f9fafb;
-        }
-
-        .mini td,
-        .mini th {
-            font-size: 8px;
-        }
-
-        .summary td:first-child {
-            font-weight: bold;
-            width: 65%;
-        }
-
-        .summary .total-row td {
-            font-size: 9px;
-            font-weight: bold;
-            background: #f3f4f6;
-        }
-
-        .two-col {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .two-col td {
-            width: 50%;
-            vertical-align: top;
-            padding-right: 3px;
-        }
-
-        .small {
-            font-size: 8px;
-        }
-
-        .footer {
-            margin-top: 4px;
-            font-size: 7px;
-            color: #6b7280;
-            text-align: center;
-            line-height: 1.2;
-        }
-
-        .no-break {
-            page-break-inside: avoid;
-        }
+        .footer-note { font-size: 6px; color: #666; text-align: center; padding: 4px; border: none; border-top: 1px solid #000; }
     </style>
 </head>
 <body>
-    <div class="sheet">
-        <div class="header">
-            <div class="brand">
-                <h1>Kondang Ekspedisi</h1>
-                <div class="subtitle">Shipment Label / Resi Pengiriman</div>
-                <div class="tracking">{{ $shipment->tracking_number }}</div>
-            </div>
-            <div class="meta">
-                <div class="badge">{{ strtoupper($shipment->service_type ?? 'regular') }}</div>
-                <div class="small muted" style="margin-top: 8px;">Cetak: {{ now()->format('d/m/Y H:i') }}</div>
-                <div class="small muted">Status: {{ $shipment->status?->name ?? '-' }}</div>
-                <div class="small muted">Payment: {{ strtoupper($shipment->payment_status ?? '-') }}</div>
-            </div>
-        </div>
-
-        <div class="barcode-wrap">
-            <img src="data:image/png;base64,{{ $barcode }}" alt="Barcode {{ $shipment->tracking_number }}">
-            <div class="small">Scan untuk identifikasi shipment</div>
-        </div>
-
-        <table class="two-col no-break" cellspacing="0" cellpadding="0">
+    <div class="label-container">
+        <!-- Top Header -->
+        <table style="border-bottom: 2px solid #000;">
             <tr>
-                <td>
-                    <p class="section-title">Rute Pengiriman</p>
-                    <table class="grid details" cellspacing="0" cellpadding="0">
-                        <tr>
-                            <td>Cabang Asal</td>
-                            <td>
-                                {{ $originBranch?->name ?? '-' }}<br>
-                                <span class="muted">{{ $originBranch?->city ?? '-' }}</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Cabang Tujuan</td>
-                            <td>
-                                {{ $destinationBranch?->name ?? '-' }}<br>
-                                <span class="muted">{{ $destinationBranch?->city ?? '-' }}</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Kurir / Armada</td>
-                            <td>
-                                {{ $shipment->courier?->name ?? '-' }}<br>
-                                <span class="muted">{{ $shipment->vehicle?->plate_number ?? '-' }}</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Tanggal Masuk</td>
-                            <td>{{ optional($shipment->created_at)->format('d/m/Y H:i') }}</td>
-                        </tr>
-                        <tr>
-                            <td>Estimasi Sampai</td>
-                            <td>{{ optional($shipment->estimated_delivery_at)->format('d/m/Y H:i') ?? '-' }}</td>
-                        </tr>
-                    </table>
-                </td>
-                <td>
-                    <p class="section-title">Detail Penerima</p>
-                    <table class="grid details" cellspacing="0" cellpadding="0">
-                        <tr>
-                            <td>Nama</td>
-                            <td>{{ $shipment->recipient_name }}</td>
-                        </tr>
-                        <tr>
-                            <td>Telepon</td>
-                            <td>{{ $shipment->recipient_phone }}</td>
-                        </tr>
-                        <tr>
-                            <td>Alamat</td>
-                            <td>{{ \Illuminate\Support\Str::limit($shipment->recipient_address, 58) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Pengirim</td>
-                            <td>
-                                {{ $shipment->sender_name }}<br>
-                                <span class="muted">{{ $shipment->sender_phone }}</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Alamat Pengirim</td>
-                            <td>{{ \Illuminate\Support\Str::limit($shipment->sender_address, 58) }}</td>
-                        </tr>
-                    </table>
+                <td class="header-logo" style="width: 45%; font-size: 11px;">KONDANG <span style="font-weight: 900; color: #1e3a8a;">EKSPEDISI</span></td>
+                <td class="header-type" style="width: 20%;">{{ strtoupper($shipment->service_type ?? 'REGULER') }}</td>
+                <td class="header-tracking" style="width: 35%;">
+                    <div style="font-size: 7px; color: #444;">No. Resi:</div>
+                    {{ $shipment->tracking_number }}
                 </td>
             </tr>
         </table>
 
-        <table class="two-col no-break" cellspacing="0" cellpadding="0">
+        <!-- Main QR Code -->
+        <div class="barcode-section" style="border-bottom: 1.5px dashed #000;">
+            <div style="margin: 0 auto; width: 25mm; height: 25mm;">
+                <img src="data:image/svg+xml;base64,{{ $qrcode }}" style="width: 100%; height: 100%;">
+            </div>
+            <div class="tracking-number">{{ $shipment->tracking_number }}</div>
+        </div>
+
+        <!-- Address Section -->
+        <table>
             <tr>
-                <td>
-                    <p class="section-title">Rincian Paket</p>
-                    <table class="grid mini summary" cellspacing="0" cellpadding="0">
-                        <tr>
-                            <td>Berat</td>
-                            <td>{{ number_format((float) $shipment->total_weight_kg, 2) }} kg</td>
-                        </tr>
-                        <tr>
-                            <td>Volume</td>
-                            <td>{{ number_format((float) $shipment->total_volume, 2) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Subtotal</td>
-                            <td>{{ number_format((float) $shipment->subtotal_amount, 0, ',', '.') }}</td>
-                        </tr>
-                        <tr>
-                            <td>Asuransi</td>
-                            <td>{{ number_format((float) $shipment->insurance_amount, 0, ',', '.') }}</td>
-                        </tr>
-                        <tr>
-                            <td>Admin Fee</td>
-                            <td>{{ number_format((float) $shipment->admin_fee, 0, ',', '.') }}</td>
-                        </tr>
-                        <tr class="total-row">
-                            <td>Total</td>
-                            <td>{{ number_format((float) $shipment->total_amount, 0, ',', '.') }}</td>
-                        </tr>
-                    </table>
+                <td style="width: 50%;" class="address-box">
+                    <div class="bold uppercase" style="margin-bottom: 4px;">Penerima: {{ $shipment->recipient_name }}</div>
+                    <div style="margin-bottom: 4px;">{{ $shipment->recipient_phone }}</div>
+                    <div>{{ $shipment->recipient_address }}</div>
+                    <div class="bold uppercase" style="margin-top: 6px;">{{ $destinationBranch?->city ?? '-' }}</div>
                 </td>
-                <td>
-                    <p class="section-title">Pembayaran & Catatan</p>
-                    <table class="grid mini summary" cellspacing="0" cellpadding="0">
-                        <tr>
-                            <td>Metode</td>
-                            <td>{{ $latestPayment?->method ?? '-' }}</td>
-                        </tr>
-                        <tr>
-                            <td>Status</td>
-                            <td>{{ $latestPayment?->status ?? $shipment->payment_status }}</td>
-                        </tr>
-                        <tr>
-                            <td>Nominal</td>
-                            <td>{{ number_format((float) ($latestPayment?->amount ?? $shipment->total_amount), 0, ',', '.') }}</td>
-                        </tr>
-                        <tr>
-                            <td>Catatan</td>
-                            <td>{{ \Illuminate\Support\Str::limit($shipment->notes ?: '-', 42) }}</td>
-                        </tr>
-                    </table>
+                <td style="width: 50%;" class="address-box">
+                    <div class="bold uppercase" style="margin-bottom: 4px;">Pengirim: {{ $shipment->sender_name }}</div>
+                    <div style="margin-bottom: 4px;">{{ $shipment->sender_phone }}</div>
+                    <div>{{ $shipment->sender_address }}</div>
+                    <div class="bold uppercase" style="margin-top: 6px;">{{ $originBranch?->city ?? '-' }}</div>
                 </td>
             </tr>
         </table>
 
+        <!-- Specs Section -->
+        <table class="info-grid">
+            <tr>
+                <td>
+                    <div class="bold">Berat: {{ number_format($shipment->total_weight_kg, 2) }} kg</div>
+                    <div>COD: Rp {{ number_format($shipment->total_amount, 0, ',', '.') }}</div>
+                </td>
+                <td>
+                    <div class="bold">Batas Kirim: {{ optional($shipment->estimated_delivery_at)->format('d-m-Y') ?? now()->addDays(3)->format('d-m-Y') }}</div>
+                    <div>Order ID: {{ $shipment->id }}</div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Cashless Banner -->
+        <div class="cashless-banner">
+            CASHLESS <span>Penjual tidak perlu bayar ongkir ke Kurir</span>
+        </div>
+
+        <!-- Items Section -->
         @if ($shipment->items->isNotEmpty())
-            <p class="section-title">Daftar Item</p>
-            <table class="grid mini no-break" cellspacing="0" cellpadding="0">
+        <table class="items-table">
+            <thead>
                 <tr>
-                    <th style="width: 6%;">#</th>
-                    <th>Nama Barang</th>
-                    <th style="width: 12%;">Qty</th>
-                    <th style="width: 18%;">Kondisi</th>
+                    <th style="width: 5%;">#</th>
+                    <th style="width: 65%;">Nama Produk</th>
+                    <th style="width: 15%;">SKU/Variasi</th>
+                    <th style="width: 15%;">Qty</th>
                 </tr>
-                @foreach ($shipment->items->take(2) as $index => $item)
-                    <tr>
-                        <td>{{ $index + 1 }}</td>
-                        <td>
-                            {{ \Illuminate\Support\Str::limit($item->name ?? $item->item_name ?? '-', 24) }}
-                        </td>
-                        <td>{{ $item->quantity ?? 1 }}</td>
-                        <td>{{ $item->condition ?? '-' }}</td>
-                    </tr>
+            </thead>
+            <tbody>
+                @foreach ($shipment->items->take(5) as $index => $item)
+                <tr>
+                    <td>{{ $index + 1 }}</td>
+                    <td>{{ \Illuminate\Support\Str::limit($item->name ?? $item->item_name ?? '-', 45) }}</td>
+                    <td>{{ $item->sku ?? '-' }}</td>
+                    <td>{{ $item->quantity ?? 1 }}</td>
+                </tr>
                 @endforeach
-                @if ($shipment->items->count() > 2)
-                    <tr>
-                        <td colspan="4" class="muted">+{{ $shipment->items->count() - 2 }} item lain diringkas.</td>
-                    </tr>
-                @endif
-            </table>
+            </tbody>
+        </table>
         @endif
 
-        <div class="footer">
-            Dokumen otomatis Kondang Ekspedisi.
+        <div class="footer-note">
+            Dicetak melalui Sistem Kondang Ekspedisi pada {{ now()->format('d/m/Y H:i') }}. Resi ini adalah bukti pengiriman yang sah.
         </div>
     </div>
 </body>

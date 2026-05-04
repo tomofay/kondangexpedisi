@@ -271,9 +271,49 @@
 
         .social-btn:hover { background: var(--primary); color: white; transform: translateY(-3px); }
 
+        @media (max-width: 1199.98px) {
+            .hero-title { font-size: 3.5rem; }
+        }
+
         @media (max-width: 991.98px) {
-            .hero-title { font-size: 3rem; }
-            .action-container { margin-top: 3rem; }
+            .hero-title { font-size: 3rem; text-align: center; }
+            .hero-wrap { padding: 120px 0 60px; }
+            .hero-wrap p { text-align: center; margin-bottom: 2rem !important; }
+            .hero-wrap .row.align-items-center > div:first-child { display: flex; flex-direction: column; align-items: center; }
+            .section-tag { margin-left: auto; margin-right: auto; }
+            
+            .action-container { margin-top: 2rem; padding: 1.5rem; border-radius: 20px; }
+            .navbar { background: white !important; padding: 0.8rem 0; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+            .navbar-collapse { 
+                background: white; 
+                margin-top: 0.5rem; 
+                padding: 1rem; 
+                border-radius: 15px; 
+                box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            }
+            .nav-item { width: 100%; text-align: center; margin: 8px 0; }
+            .nav-link { margin: 0; padding: 8px 0; }
+            .navbar-nav .ms-lg-3, .navbar-nav .ms-2 { margin-left: 0 !important; margin-top: 10px; width: 100%; }
+            .navbar-nav .btn { width: 100%; display: block; padding: 12px; }
+        }
+
+        @media (max-width: 767.98px) {
+            .hero-title { font-size: 2.5rem; letter-spacing: -1px; }
+            .section-title { font-size: 2rem; }
+            .stats-strip [class*="col-"] { border: none !important; margin-bottom: 2rem; }
+            .stats-strip [class*="col-"]:last-child { margin-bottom: 0; }
+            .footer-main { padding: 60px 0 30px; text-align: center; }
+            .footer-main .text-start { text-align: center !important; }
+            .social-links { justify-content: center; display: flex; margin-bottom: 2rem; }
+            .card-service { padding: 2rem 1.5rem; }
+        }
+
+        @media (max-width: 575.98px) {
+            .hero-title { font-size: 2.2rem; }
+            .input-clean-group { padding: 2px 6px; }
+            .input-clean-group input, .input-clean-group select { font-size: 0.9rem; }
+            .btn-kondang-solid { padding: 0.9rem; font-size: 0.9rem; }
+            .nav-tabs-clean .nav-link { font-size: 0.8rem; padding: 10px 5px; }
         }
     </style>
 </head>
@@ -282,8 +322,8 @@
     <nav class="navbar navbar-expand-lg fixed-top" id="topNav">
         <div class="container">
             <a class="navbar-brand" href="/">KONDANG<span>EKSPEDISI</span></a>
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
-                <i class="bi bi-list fs-1"></i>
+            <button class="navbar-toggler border-0 shadow-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+                <i class="bi bi-list text-primary" style="font-size: 2.2rem;"></i>
             </button>
             <div class="collapse navbar-collapse" id="navContent">
                 <ul class="navbar-nav ms-auto align-items-center">
@@ -312,15 +352,15 @@
                     <h1 class="hero-title">Kirim Paket Secepat <span>Kilat.</span></h1>
                     <p class="text-muted fs-5 mb-5">Keamanan paket Anda adalah prioritas kami. Didukung sistem tracking tercanggih untuk ketenangan pikiran Anda.</p>
                     
-                    <div class="row g-4 mb-4">
-                        <div class="col-6">
-                            <div class="d-flex align-items-center gap-3">
+                    <div class="row g-3 g-md-4 mb-4 justify-content-center justify-content-lg-start">
+                        <div class="col-auto col-sm-6 col-lg-auto">
+                            <div class="d-flex align-items-center gap-2 gap-md-3">
                                 <div class="bg-primary-light text-primary p-2 rounded-3" style="background-color: #EBF3FF;"><i class="bi bi-shield-fill-check fs-4"></i></div>
                                 <span class="fw-bold small">Fully Insured</span>
                             </div>
                         </div>
-                        <div class="col-6">
-                            <div class="d-flex align-items-center gap-3">
+                        <div class="col-auto col-sm-6 col-lg-auto">
+                            <div class="d-flex align-items-center gap-2 gap-md-3">
                                 <div class="bg-primary-light text-primary p-2 rounded-3" style="background-color: #EBF3FF;"><i class="bi bi-geo-alt-fill fs-4"></i></div>
                                 <span class="fw-bold small">National Coverage</span>
                             </div>

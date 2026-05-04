@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class CourierPortalController extends Controller
 {
@@ -18,13 +19,93 @@ class CourierPortalController extends Controller
     {
         $courier = $request->user();
         
+        // Dashboard: Only show max 3 active (non-delivered) shipments
         $tasks = Shipment::query()
             ->where('courier_id', $courier->id)
-            ->with(['status', 'branch', 'trackings.status'])
+            ->where('status_id', '!=', 8) // Exclude delivered
+            ->with(['status', 'branch'])
             ->latest()
+            ->take(3)
             ->get();
 
-        return view('mobile.courier.tasks', compact('tasks'));
+        $stats = [
+            'pending' => Shipment::where('courier_id', $courier->id)->where('status_id', '!=', 8)->count(),
+            'completed' => Shipment::where('courier_id', $courier->id)->where('status_id', 8)->count(),
+        ];
+
+        return view('mobile.courier.tasks', compact('tasks', 'stats'));
+    }
+
+    public function index(Request $request): View
+    {
+        $courier = $request->user();
+        $query = Shipment::query()
+            ->where('courier_id', $courier->id)
+            ->where('status_id', '!=', 8) // Exclude delivered
+            ->with(['status', 'branch']);
+
+        // Search
+        if ($request->filled('search')) {
+            $query->where(function($q) use ($request) {
+                $q->where('tracking_number', 'like', '%' . $request->search . '%')
+                  ->orWhere('recipient_name', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        // Filter Status
+        if ($request->filled('status')) {
+            $query->whereHas('status', function($q) use ($request) {
+                $q->where('code', $request->status);
+            });
+        }
+
+        $shipments = $query->latest()->get();
+        $statuses = ShipmentStatus::where('code', '!=', 'delivered')->get();
+
+        return view('mobile.courier.all_tasks', compact('shipments', 'statuses'));
+    }
+
+    public function bulkUpdate(Request $request, ShipmentService $shipmentService): RedirectResponse
+    {
+        $request->validate([
+            'shipment_ids' => 'required|array',
+            'shipment_ids.*' => 'exists:shipments,id',
+            'status_code' => 'required|string|exists:shipment_statuses,code',
+            'location' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $updatedCount = 0;
+            DB::transaction(function () use ($request, $shipmentService, &$updatedCount) {
+                foreach ($request->shipment_ids as $id) {
+                    $shipment = Shipment::with('status')->findOrFail($id);
+                    
+                    // Security check
+                    if ((int) $shipment->courier_id !== (int) auth()->id()) continue;
+
+                    // Skip if already in this status to avoid validation errors
+                    if ($shipment->status->code === $request->status_code) continue;
+
+                    $shipmentService->transitionStatus(
+                        $shipment,
+                        $request->status_code,
+                        auth()->id(),
+                        $request->location,
+                        $request->notes
+                    );
+                    $updatedCount++;
+                }
+            });
+
+            if ($updatedCount === 0) {
+                return redirect()->route('courier.shipments.index')->with('info', 'Semua paket terpilih sudah berada pada status tersebut.');
+            }
+
+            return redirect()->route('courier.shipments.index')->with('success', $updatedCount . ' paket berhasil diperbarui.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal memperbarui paket: ' . $e->getMessage())->withInput();
+        }
     }
 
     public function edit(Shipment $shipment): View
@@ -32,8 +113,28 @@ class CourierPortalController extends Controller
         abort_unless((int) $shipment->courier_id === (int) auth()->id(), 403);
         
         $shipment->load(['status', 'trackings.status', 'branch']);
+        $courier = auth()->user()->load('branch');
         
-        return view('mobile.courier.update_status', compact('shipment'));
+        return view('mobile.courier.update_status', compact('shipment', 'courier'));
+    }
+
+    public function bulkEdit(Request $request): View
+    {
+        $request->validate([
+            'shipment_ids' => 'required|array',
+            'shipment_ids.*' => 'exists:shipments,id',
+        ]);
+
+        $shipments = Shipment::whereIn('id', $request->shipment_ids)
+            ->where('courier_id', auth()->id())
+            ->with(['status', 'branch'])
+            ->get();
+
+        abort_if($shipments->isEmpty(), 403);
+        
+        $courier = auth()->user()->load('branch');
+        
+        return view('mobile.courier.bulk_update_status', compact('shipments', 'courier'));
     }
 
     public function update(Request $request, Shipment $shipment, ShipmentService $shipmentService): RedirectResponse
@@ -44,7 +145,12 @@ class CourierPortalController extends Controller
             'status_code' => 'required|string|exists:shipment_statuses,code',
             'location' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:500',
-            'proof_photo' => 'nullable|image|max:5120', // Max 5MB
+            'proof_photo' => [
+                Rule::requiredIf(fn () => in_array($request->status_code, ['delivered', 'failed_delivery', 'returned'])),
+                'nullable',
+                'image', 
+                'max:5120'
+            ],
             'gps_lat' => 'nullable|numeric',
             'gps_lng' => 'nullable|numeric',
         ]);
@@ -92,6 +198,27 @@ class CourierPortalController extends Controller
             return back()->withErrors($e->validator)->withInput();
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal memperbarui status: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    public function claim(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'tracking_number' => 'required|string|exists:shipments,tracking_number',
+        ]);
+
+        try {
+            $shipment = Shipment::where('tracking_number', $request->tracking_number)->firstOrFail();
+            
+            // Assign to current courier
+            $shipment->update([
+                'courier_id' => auth()->id()
+            ]);
+
+            return redirect()->route('courier.shipments.edit', $shipment)
+                ->with('success', 'Paket berhasil diambil alih.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal mengambil paket: ' . $e->getMessage());
         }
     }
 }

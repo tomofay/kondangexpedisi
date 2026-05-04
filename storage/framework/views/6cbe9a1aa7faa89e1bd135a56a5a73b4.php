@@ -242,19 +242,23 @@
                     </a>
                 </li>
                 <?php endif; ?>
+                <?php if(auth()->user()->role === 'admin'): ?>
                 <li class="nav-item">
                     <a href="<?php echo e(url('/users')); ?>" class="nav-link-custom <?php echo e(request()->is('users*') ? 'active' : ''); ?>">
                         <i class="bi bi-people-fill"></i>
                         <span class="nav-text">Manajemen User</span>
                     </a>
                 </li>
+                <?php endif; ?>
 
+                <?php if(auth()->user()->role === 'admin' || auth()->user()->role === 'manager'): ?>
                 <li class="nav-item">
                     <a href="<?php echo e(route('reports.summary')); ?>" class="nav-link-custom <?php echo e(request()->routeIs('reports.*') ? 'active' : ''); ?>">
                         <i class="bi bi-file-earmark-bar-graph-fill"></i>
                         <span class="nav-text">Laporan</span>
                     </a>
                 </li>
+                <?php endif; ?>
             </ul>
 
             <div style="position: absolute; bottom: 1rem; width: 100%; padding: 0.5rem;">
@@ -329,7 +333,19 @@
                     sidebar.classList.add('collapsed');
                     wrapper.classList.add('expanded');
                 }
+
+                // Global Session Alerts
+                <?php if(session('success')): ?>
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: "<?php echo e(session('success')); ?>", timer: 3000, showConfirmButton: false });
+                <?php endif; ?>
+                <?php if(session('error')): ?>
+                    Swal.fire({ icon: 'error', title: 'Error', text: "<?php echo e(session('error')); ?>" });
+                <?php endif; ?>
+                <?php if(session('warning')): ?>
+                    Swal.fire({ icon: 'warning', title: 'Perhatian', text: "<?php echo e(session('warning')); ?>" });
+                <?php endif; ?>
             });
         </script>
+        <?php echo $__env->yieldPushContent('scripts'); ?>
     </body>
 </html><?php /**PATH C:\Users\toram\OneDrive\Desktop\projek\ekspedisi-online\resources\views/layouts/app.blade.php ENDPATH**/ ?>

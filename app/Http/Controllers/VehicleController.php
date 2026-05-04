@@ -73,7 +73,6 @@ class VehicleController extends Controller
                 Rule::unique('vehicles', 'plate_number')->whereNull('deleted_at'),
             ],
             'type' => ['required', 'in:motorcycle,car,van,truck'],
-            'capacity_kg' => ['required', 'numeric', 'min:0'],
             'status' => ['required', 'in:available,in_use,maintenance,inactive'],
         ]);
 
@@ -120,7 +119,6 @@ class VehicleController extends Controller
                 Rule::unique('vehicles', 'plate_number')->ignore($vehicle->id)->whereNull('deleted_at'),
             ],
             'type' => ['sometimes', 'in:motorcycle,car,van,truck'],
-            'capacity_kg' => ['sometimes', 'numeric', 'min:0'],
             'status' => ['sometimes', 'in:available,in_use,maintenance,inactive'],
         ]);
 

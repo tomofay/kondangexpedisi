@@ -53,18 +53,18 @@
         }
 
         .nav-item.active {
-            color: #6366f1; /* Indigo 500 */
+            color: #2563eb; /* Blue 600 */
         }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 h-full flex flex-col overflow-hidden">
+<body class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 h-full flex flex-col overflow-hidden">
     <!-- Header -->
     <header class="glass-header sticky top-0 z-50 px-4 h-16 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
-                A
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+                K
             </div>
-            <span class="font-bold text-lg tracking-tight">Express</span>
+            <span class="font-bold text-lg tracking-tight text-blue-600 italic">KONDANG</span>
         </div>
         
         <div class="flex items-center gap-3">
@@ -72,7 +72,8 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
             </button>
             <div class="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden">
-                <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=6366f1&color=fff" alt="Avatar">
+                <img src="{{ auth()->user()->photo ? asset('storage/' . auth()->user()->photo) : 'https://ui-avatars.com/api/?name=' . urlencode(auth()->user()->name) . '&background=2563eb&color=fff' }}" 
+                     class="w-full h-full object-cover" alt="Avatar">
             </div>
         </div>
     </header>

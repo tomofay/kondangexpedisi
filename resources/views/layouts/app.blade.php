@@ -242,19 +242,23 @@
                     </a>
                 </li>
                 @endif
+                @if(auth()->user()->role === 'admin')
                 <li class="nav-item">
                     <a href="{{ url('/users') }}" class="nav-link-custom {{ request()->is('users*') ? 'active' : '' }}">
                         <i class="bi bi-people-fill"></i>
                         <span class="nav-text">Manajemen User</span>
                     </a>
                 </li>
+                @endif
 
+                @if(auth()->user()->role === 'admin' || auth()->user()->role === 'manager')
                 <li class="nav-item">
                     <a href="{{ route('reports.summary') }}" class="nav-link-custom {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                         <i class="bi bi-file-earmark-bar-graph-fill"></i>
                         <span class="nav-text">Laporan</span>
                     </a>
                 </li>
+                @endif
             </ul>
 
             <div style="position: absolute; bottom: 1rem; width: 100%; padding: 0.5rem;">
@@ -326,7 +330,19 @@
                     sidebar.classList.add('collapsed');
                     wrapper.classList.add('expanded');
                 }
+
+                // Global Session Alerts
+                @if(session('success'))
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: "{{ session('success') }}", timer: 3000, showConfirmButton: false });
+                @endif
+                @if(session('error'))
+                    Swal.fire({ icon: 'error', title: 'Error', text: "{{ session('error') }}" });
+                @endif
+                @if(session('warning'))
+                    Swal.fire({ icon: 'warning', title: 'Perhatian', text: "{{ session('warning') }}" });
+                @endif
             });
         </script>
+        @stack('scripts')
     </body>
 </html>

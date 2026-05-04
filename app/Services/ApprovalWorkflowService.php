@@ -490,12 +490,17 @@ class ApprovalWorkflowService
             ]);
         }
 
-        return $this->operationalIssueService->applyPaymentManualOverride(
+        $payment = $this->operationalIssueService->applyPaymentManualOverride(
             $payment,
             $approver,
             ['status' => $requestedStatus],
             trim((string) ($task->action_data['reason'] ?? 'Approval perubahan payment manual').($note ? ' '.$note : ''))
         );
+
+        // Sync payment status to shipment to trigger auto-transition if needed
+        $this->shipmentService->syncPaymentStatus($payment->shipment, $payment->status);
+
+        return $payment;
     }
 
     private function applyRateCardTaskApproval(AdminTask $task, User $approver, ?string $note): RateCard
@@ -593,9 +598,16 @@ class ApprovalWorkflowService
         }
 
         $model = $modelClass::query()->findOrFail($modelId);
+        if ($model instanceof Payment) {
+            $model->load('shipment');
+        }
         $before = $model->only(array_keys($changes));
 
         $model->forceFill($changes)->save();
+
+        if ($model instanceof Payment && $model->shipment) {
+            $this->shipmentService->syncPaymentStatus($model->shipment, $model->status);
+        }
 
         $this->auditLogService->record(
             'kasir_edit.approved',

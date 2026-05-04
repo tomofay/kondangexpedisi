@@ -259,8 +259,6 @@
                             <?php $__currentLoopData = [
                                 ['icon' => 'bi-box-arrow-in-right', 'color' => '#6366F1', 'bg' => '#EEF2FF', 'title' => 'Input Shipment', 'onclick' => "switchView('view-shipments')"],
                                 ['icon' => 'bi-credit-card-2-front', 'color' => '#10B981', 'bg' => '#ECFDF5', 'title' => 'Proses Bayar', 'onclick' => "switchView('view-payments')"],
-                                ['icon' => 'bi-journal-text', 'color' => '#F59E0B', 'bg' => '#FFFBEB', 'title' => 'Buku Kas', 'route' => 'reports.payment-overview'],
-                                ['icon' => 'bi-check-circle-fill', 'color' => '#0EA5E9', 'bg' => '#F0F9FF', 'title' => 'Rekonsiliasi', 'route' => 'reports.daily-reconciliation'],
                             ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $action): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <div class="col-md-3">
                                 <a href="<?php echo e(isset($action['route']) ? route($action['route']) : '#'); ?>" 
@@ -323,7 +321,7 @@
                     <select id="filter-shipment-status" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="background:#F1F5F9; font-weight:700; width:150px;" onchange="window.loadViewData('view-shipments', 1)">
                         <option value="">All Status</option>
                     </select>
-                    <a href="<?php echo e(route('shipments.index')); ?>" class="btn btn-indigo rounded-pill px-4 fw-bold shadow-sm" style="background: #6366F1; color: white;"><i class="bi bi-plus-lg me-2"></i>Shipment Baru</a>
+                    <button onclick="handleAddShipment()" class="btn btn-indigo rounded-pill px-4 fw-bold shadow-sm" style="background: #6366F1; color: white;"><i class="bi bi-plus-lg me-2"></i>Shipment Baru</button>
                 </div>
             </div>
             <div class="card-pro p-4">
@@ -347,6 +345,15 @@
                     <h4 class="fw-bold m-0 text-dark">Layanan Pembayaran</h4>
                     <small class="text-muted fw-bold text-uppercase">Konfirmasi Transaksi Cabang</small>
                 </div>
+                <div class="d-flex gap-3 align-items-center">
+                    <input type="text" id="payment-search" class="form-control form-control-sm border-0 shadow-sm rounded-pill px-3" placeholder="Search ID or Tracking" style="background:#F1F5F9; font-weight:700; width:220px;" onkeyup="debounceLoad('view-payments')">
+                    <select id="filter-payment-status" class="form-select form-select-sm border-0 shadow-sm rounded-pill" style="background:#F1F5F9; font-weight:700; width:150px;" onchange="window.loadViewData('view-payments', 1)">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="settlement">Settlement</option>
+                        <option value="cancel">Cancel</option>
+                    </select>
+                </div>
             </div>
             <div class="card-pro p-4">
                 <div class="table-responsive">
@@ -367,6 +374,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        const state = {
+            branches: [],
+            statuses: [],
+            couriers: []
+        };
+
         const escapeHtml = (unsafe) => {
             if (unsafe === null || unsafe === undefined) return '';
             return String(unsafe)
@@ -464,6 +477,25 @@
                             data.shipment_statuses.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
                     }
 
+                    // Sync state from dashboard data
+                    state.branches = data.branches || [];
+                    state.statuses = data.shipment_statuses || [];
+                    state.couriers = data.couriers || [];
+
+                    // Fallback to API if payload is partial (for older logic compatibility)
+                    if (state.branches.length === 0 || state.statuses.length === 0 || state.couriers.length === 0) {
+                        try {
+                            const [bRes, sRes, cRes] = await Promise.all([
+                                axios.get('/branches?per_page=100').catch(() => ({data:{data:[]}})),
+                                axios.get('/shipment-statuses?per_page=100').catch(() => ({data:{data:[]}})),
+                                axios.get('/users?role=courier&per_page=100').catch(() => ({data:{data:[]}}))
+                            ]);
+                            if (state.branches.length === 0) state.branches = bRes.data.data || [];
+                            if (state.statuses.length === 0) state.statuses = sRes.data.data || [];
+                            if (state.couriers.length === 0) state.couriers = cRes.data.data || [];
+                        } catch (e) { console.warn('Form data sync failed', e); }
+                    }
+
                     renderCharts(data);
                 } catch (error) { console.error(error); }
             };
@@ -524,39 +556,371 @@
                             const sStatus = document.getElementById('filter-shipment-status').value;
                             const sLimit = document.getElementById('sel-view-shipments-limit')?.value || 10;
                             endpoint = `/shipments?page=${page}&search=${sSearch}&status_id=${sStatus}&per_page=${sLimit}`;
-                            thead.innerHTML = '<tr><th>Tracking #</th><th>Sender</th><th>Recipient</th><th>Total</th><th class="text-end">Status</th></tr>';
+                            thead.innerHTML = '<tr><th>Tracking #</th><th>Sender</th><th>Recipient</th><th>Total</th><th>Status</th><th class="text-end">Aksi</th></tr>';
                             response = await axios.get(endpoint);
                             tbody.innerHTML = response.data.data.map(item => `
                                 <tr class="hover-row">
                                     <td>
-                                        <div class="fw-bold text-primary">${escapeHtml(item.tracking_number)}</div>
-                                        <div class="badge bg-light text-dark border-0" style="font-size:0.6rem; letter-spacing: 0.5px;">${escapeHtml(item.service_type.toUpperCase())}</div>
+                                        <div class="fw-extrabold text-primary" style="font-size: 1rem;">${escapeHtml(item.tracking_number)}</div>
+                                        <div class="badge bg-light text-dark border-0 mt-1" style="font-size:0.6rem; letter-spacing: 0.5px;">${escapeHtml(item.service_type.toUpperCase())}</div>
                                     </td>
-                                    <td><div class="small fw-bold">${escapeHtml(item.sender_name)}</div></td>
-                                    <td><div class="small fw-bold">${escapeHtml(item.recipient_name)}</div></td>
-                                    <td><div class="fw-bold">Rp${new Intl.NumberFormat('id-ID').format(item.total_amount)}</div></td>
-                                    <td class="text-end">${renderStatusPill(item.status.code, item.status.name)}</td>
-                                </tr>`).join('') || '<tr><td colspan="5" class="text-center py-4">No data found.</td></tr>';
+                                    <td>
+                                        <div class="small fw-bold text-dark">${escapeHtml(item.sender_name)}</div>
+                                        <div class="text-muted" style="font-size: 0.7rem;">${escapeHtml(item.sender_phone || '')}</div>
+                                    </td>
+                                    <td>
+                                        <div class="small fw-bold text-dark">${escapeHtml(item.recipient_name)}</div>
+                                        <div class="text-muted" style="font-size: 0.7rem;">${escapeHtml(item.recipient_phone || '')}</div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">Rp${new Intl.NumberFormat('id-ID').format(item.total_amount)}</div>
+                                        <div class="text-muted d-flex align-items-center gap-1" style="font-size: 0.65rem;">
+                                            <i class="bi bi-wallet2 text-primary"></i> ${item.payment_status?.toUpperCase() || 'UNPAID'}
+                                        </div>
+                                    </td>
+                                    <td>${renderStatusPill(item.status.code, item.status.name)}</td>
+                                    <td class="text-end">
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <a href="/shipments/${item.id}/label" class="btn-action-sm btn-print" title="Print Resi" target="_blank">
+                                                <i class="bi bi-printer-fill"></i>
+                                            </a>
+                                            <button class="btn-action-sm btn-history" title="Riwayat Tracking" onclick="handleViewHistory(${item.id})">
+                                                <i class="bi bi-clock-history"></i>
+                                            </button>
+                                            <button class="btn-action-sm btn-edit" title="Edit Data" onclick="handleEditShipment(${item.id})">
+                                                <i class="bi bi-pencil-fill"></i>
+                                            </button>
+                                            <button class="btn-action-sm btn-delete" title="Hapus Data" onclick="handleDeleteShipment(${item.id})">
+                                                <i class="bi bi-trash3-fill"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>`).join('') || '<tr><td colspan="6" class="text-center py-5">No data found.</td></tr>';
                             renderPagination(pagination, response.data, viewId);
                             break;
 
                         case 'view-payments':
+                            const pSearch = document.getElementById('payment-search').value;
+                            const pStatus = document.getElementById('filter-payment-status').value;
                             const pLimit = document.getElementById('sel-view-payments-limit')?.value || 10;
-                            endpoint = `/payments?per_page=${pLimit}&page=${page}&status=pending`;
-                            thead.innerHTML = '<tr><th>#ID</th><th>Shipment</th><th>Method</th><th>Amount</th><th class="text-end">Aksi</th></tr>';
+                            endpoint = `/payments?per_page=${pLimit}&page=${page}&search=${pSearch}&status=${pStatus}`;
+                            thead.innerHTML = '<tr><th>#ID</th><th>Shipment</th><th>Method</th><th>Amount</th><th>Status</th><th class="text-end">Aksi</th></tr>';
                             response = await axios.get(endpoint);
                             tbody.innerHTML = response.data.data.map(item => `
                                 <tr class="hover-row">
                                     <td><div class="fw-bold text-dark">#${item.id}</div></td>
-                                    <td><div class="small fw-bold">${escapeHtml(item.shipment?.tracking_number || '-')}</div></td>
-                                    <td><div class="small fw-bold text-uppercase">${escapeHtml(item.method)} ${item.bank_name ? '('+escapeHtml(item.bank_name)+')' : ''}</div></td>
+                                    <td>
+                                        <div class="small fw-bold">${escapeHtml(item.shipment?.tracking_number || '-')}</div>
+                                        <div class="text-muted small">${escapeHtml(item.shipment?.sender_name || '')}</div>
+                                    </td>
+                                    <td><div class="small fw-bold text-uppercase">${escapeHtml(item.method)}</div></td>
                                     <td><div class="fw-bold text-primary">Rp${new Intl.NumberFormat('id-ID').format(item.amount)}</div></td>
-                                    <td class="text-end"><a href="<?php echo e(route('payments.index')); ?>" class="btn btn-sm btn-indigo rounded-pill px-3 fw-bold" style="font-size:0.75rem; background: #6366F1; color: white;">Proses</a></td>
-                                </tr>`).join('') || '<tr><td colspan="5" class="text-center py-4">No data found.</td></tr>';
+                                    <td>
+                                        <span class="status-pill ${item.status === 'settlement' || item.status === 'paid' ? 'bg-success-light text-success' : (['failed', 'cancel', 'expire'].includes(item.status) ? 'bg-danger-light text-danger' : 'bg-warning-light text-warning')}">
+                                            <i class="bi bi-circle-fill"></i>${escapeHtml(item.status.toUpperCase())}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <button class="btn-action-sm btn-edit shadow-sm" onclick="handleEditPayment(${item.id})"><i class="bi bi-pencil-square"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>`).join('') || '<tr><td colspan="6" class="text-center py-4">No data found.</td></tr>';
                             renderPagination(pagination, response.data, viewId);
                             break;
                     }
                 } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error loading data.</td></tr>'; }
+            };
+
+            // SHIPMENT HANDLERS
+            window.handleAddShipment = async () => {
+                const userBranchId = <?php echo e(auth()->user()->branch_id); ?>;
+                const { value: formValues } = await Swal.fire({
+                    title: 'Tambah Shipment Baru',
+                    html: `
+                        <div class="text-start" style="font-size: 0.85rem;">
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">Pengirim</label>
+                                    <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                                </div>
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">HP Pengirim</label>
+                                    <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                                </div>
+                            </div>
+                            <label class="fw-bold mb-1">Alamat Pengirim</label>
+                            <textarea id="swal-s-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">Penerima</label>
+                                    <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
+                                </div>
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">HP Penerima</label>
+                                    <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
+                                </div>
+                            </div>
+                            <label class="fw-bold mb-1">Alamat Penerima</label>
+                            <textarea id="swal-r-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
+
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">Cabang Tujuan</label>
+                                    <select id="swal-dest" class="form-select form-select-sm">
+                                        ${state.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">Layanan</label>
+                                    <select id="swal-service" class="form-select form-select-sm">
+                                        <option value="regular">REGULAR</option>
+                                        <option value="express">EXPRESS</option>
+                                        <option value="same_day">SAME DAY</option>
+                                        <option value="economy">ECONOMY</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">Berat (Kg)</label>
+                                    <input id="swal-weight" class="form-control form-control-sm" type="number" step="0.1" value="1">
+                                </div>
+                                <div class="col-6">
+                                    <label class="fw-bold mb-1">Notes</label>
+                                    <input id="swal-notes" class="form-control form-control-sm">
+                                </div>
+                            </div>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: 'Simpan Shipment',
+                    preConfirm: () => {
+                        return {
+                            branch_id: userBranchId,
+                            destination_branch_id: document.getElementById('swal-dest').value,
+                            sender_name: document.getElementById('swal-s-name').value,
+                            sender_phone: document.getElementById('swal-s-phone').value,
+                            sender_address: document.getElementById('swal-s-addr').value,
+                            recipient_name: document.getElementById('swal-r-name').value,
+                            recipient_phone: document.getElementById('swal-r-phone').value,
+                            recipient_address: document.getElementById('swal-r-addr').value,
+                            service_type: document.getElementById('swal-service').value,
+                            total_weight_kg: document.getElementById('swal-weight').value,
+                            notes: document.getElementById('swal-notes').value
+                        }
+                    }
+                });
+
+                if (formValues) {
+                    try {
+                        await axios.post('/shipments', formValues);
+                        Swal.fire('Berhasil', 'Shipment baru ditambahkan.', 'success').then(() => loadViewData('view-shipments', 1));
+                    } catch (e) {
+                        Swal.fire('Error', e.response?.data?.message || 'Gagal menambahkan shipment.', 'error');
+                    }
+                }
+            };
+
+            window.handleEditShipment = async (id) => {
+                try {
+                    const { data: s } = await axios.get(`/shipments/${id}`);
+                    const { value: formValues } = await Swal.fire({
+                        title: 'Edit Shipment',
+                        html: `
+                            <div class="text-start" style="font-size: 0.85rem;">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="fw-bold mb-1 small">Status Pengiriman</label>
+                                        <select id="swal-status-id" class="form-select form-select-sm mb-2">
+                                            ${state.statuses.map(st => `<option value="${st.id}" ${s.status_id === st.id ? 'selected' : ''}>${escapeHtml(st.name)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="fw-bold mb-1 small">Kurir</label>
+                                        <select id="swal-courier-id" class="form-select form-select-sm mb-2">
+                                            <option value="">-- No Courier --</option>
+                                            ${state.couriers.map(c => `<option value="${c.id}" ${s.courier_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="fw-bold mb-1 small">Berat (kg)</label>
+                                        <input id="swal-weight" type="number" step="0.1" class="form-control form-control-sm mb-2" value="${s.total_weight_kg || 0}">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="fw-bold mb-1 small">Volume</label>
+                                        <input id="swal-volume" type="number" step="0.1" class="form-control form-control-sm mb-2" value="${s.total_volume || 0}">
+                                    </div>
+                                </div>
+                                <label class="fw-bold mb-1 small">Cabang Tujuan</label>
+                                <select id="swal-dest-id" class="form-select form-select-sm mb-2">
+                                    ${state.branches.map(b => `<option value="${b.id}" ${s.destination_branch_id === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('')}
+                                </select>
+                                <div class="p-2 rounded-3 bg-light border mb-2">
+                                    <label class="fw-bold mb-1 small text-primary">Informasi Tracking (Update)</label>
+                                    <input id="swal-location" class="form-control form-control-sm mb-1" placeholder="Lokasi saat ini" value="${escapeHtml(s.branch?.name || '')}">
+                                    <input id="swal-tracking-notes" class="form-control form-control-sm" placeholder="Catatan tracking" value="Status diperbarui oleh Kasir">
+                                </div>
+                                <hr class="my-2">
+                                <label class="fw-bold mb-1">Penerima</label>
+                                <input id="swal-r-name" class="form-control form-control-sm mb-2" value="${escapeHtml(s.recipient_name || '')}">
+                                <label class="fw-bold mb-1">HP Penerima</label>
+                                <input id="swal-r-phone" class="form-control form-control-sm mb-2" value="${escapeHtml(s.recipient_phone || '')}">
+                                <label class="fw-bold mb-1">Alamat Penerima</label>
+                                <textarea id="swal-r-addr" class="form-control form-control-sm mb-2">${escapeHtml(s.recipient_address || '')}</textarea>
+                                <label class="fw-bold mb-1">Notes / Alasan</label>
+                                <input id="swal-notes" class="form-control form-control-sm mb-2" value="${escapeHtml(s.notes || '')}">
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: 'Update Shipment',
+                        preConfirm: () => {
+                            return {
+                                status_id: document.getElementById('swal-status-id').value,
+                                courier_id: document.getElementById('swal-courier-id').value,
+                                destination_branch_id: document.getElementById('swal-dest-id').value,
+                                total_weight_kg: document.getElementById('swal-weight').value,
+                                total_volume: document.getElementById('swal-volume').value,
+                                recipient_name: document.getElementById('swal-r-name').value,
+                                recipient_phone: document.getElementById('swal-r-phone').value,
+                                recipient_address: document.getElementById('swal-r-addr').value,
+                                notes: document.getElementById('swal-notes').value,
+                                location: document.getElementById('swal-location').value,
+                                tracking_notes: document.getElementById('swal-tracking-notes').value,
+                                manual_override: false,
+                                reason: document.getElementById('swal-notes').value || 'Update shipment oleh kasir',
+                                manual_override_reason: document.getElementById('swal-notes').value || 'Update shipment oleh kasir'
+                            }
+                        }
+                    });
+
+                    if (formValues) {
+                        await axios.put(`/shipments/${id}`, formValues);
+                        Swal.fire('Berhasil', 'Shipment diperbarui.', 'success').then(() => loadViewData('view-shipments', 1));
+                    }
+                } catch (error) { Swal.fire('Error', 'Gagal memproses data.', 'error'); }
+            };
+
+            window.handleDeleteShipment = (id) => {
+                Swal.fire({
+                    title: 'Hapus Shipment?',
+                    text: "Data yang dihapus tidak dapat dikembalikan!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#F43F5E',
+                    confirmButtonText: 'Ya, Hapus!'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            await axios.delete(`/shipments/${id}`);
+                            Swal.fire('Terhapus!', 'Shipment telah dihapus.', 'success');
+                            loadViewData('view-shipments');
+                        } catch (error) { Swal.fire('Error', error.response?.data?.message || 'Gagal menghapus data', 'error'); }
+                    }
+                });
+            };
+
+            window.handleViewHistory = async (id) => {
+                try {
+                    const { data: s } = await axios.get(`/shipments/${id}`);
+                    const trackings = s.trackings || [];
+                    
+                    let historyHtml = '<div class="text-start" style="font-size: 0.85rem;">';
+                    if (trackings.length === 0) {
+                        historyHtml += '<p class="text-center text-muted py-3">Belum ada riwayat tracking.</p>';
+                    } else {
+                        historyHtml += '<div class="timeline-modern">';
+                        trackings.sort((a, b) => new Date(b.event_at) - new Date(a.event_at)).forEach((t, idx) => {
+                            historyHtml += `
+                                <div class="timeline-item pb-3 border-start ps-3 position-relative" style="border-color: #E2E8F0 !important;">
+                                    <div class="position-absolute bg-primary rounded-circle" style="width:10px; height:10px; left: -5.5px; top: 5px;"></div>
+                                    <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                        <i class="bi bi-patch-check-fill text-primary" style="font-size: 0.8rem;"></i>
+                                        ${escapeHtml(t.status?.name || 'Status Unknown')}
+                                    </div>
+                                    <div class="text-muted small d-flex align-items-center gap-1">
+                                        <i class="bi bi-calendar3" style="font-size: 0.7rem;"></i>
+                                        ${new Date(t.event_at).toLocaleString('id-ID')}
+                                    </div>
+                                    <div class="small mt-1 d-flex align-items-center gap-1">
+                                        <i class="bi bi-geo-alt-fill text-danger" style="font-size: 0.7rem;"></i>
+                                        ${escapeHtml(t.location || 'Unknown')}
+                                    </div>
+                                    ${t.notes ? `<div class="mt-1 p-2 bg-light rounded small border d-flex align-items-start gap-2">
+                                        <i class="bi bi-info-circle text-info" style="font-size: 0.75rem; margin-top: 2px;"></i>
+                                        <span>${escapeHtml(t.notes)}</span>
+                                    </div>` : ''}
+                                </div>
+                            `;
+                        });
+                        historyHtml += '</div>';
+                    }
+                    historyHtml += '</div>';
+
+                    Swal.fire({
+                        title: 'Riwayat Tracking: ' + s.tracking_number,
+                        html: historyHtml,
+                        width: '500px',
+                        confirmButtonText: 'Tutup',
+                        customClass: {
+                            popup: 'rounded-4'
+                        }
+                    });
+                } catch (error) { Swal.fire('Error', 'Gagal memuat riwayat', 'error'); }
+            };
+
+            // PAYMENT HANDLERS
+            window.handleEditPayment = async (id) => {
+                try {
+                    const { data } = await axios.get(`/payments/${id}`);
+                    const { value: formValues } = await Swal.fire({
+                        title: 'Edit Pembayaran',
+                        html: `
+                            <div class="text-start">
+                                <label class="small fw-bold">Metode</label>
+                                <select id="swal-method" class="form-select mb-3">
+                                    <option value="cash" ${data.method === 'cash' ? 'selected' : ''}>Cash</option>
+                                    <option value="transfer" ${data.method === 'transfer' ? 'selected' : ''}>Transfer</option>
+                                    <option value="e_wallet" ${data.method === 'e_wallet' ? 'selected' : ''}>E-Wallet</option>
+                                </select>
+                                <label class="small fw-bold">Status</label>
+                                <select id="swal-status" class="form-select mb-3">
+                                    <option value="pending" ${data.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                    <option value="settlement" ${data.status === 'settlement' ? 'selected' : ''}>Settlement</option>
+                                    <option value="cancel" ${data.status === 'cancel' ? 'selected' : ''}>Cancel</option>
+                                </select>
+                                <label class="small fw-bold">Alasan Perubahan</label>
+                                <textarea id="swal-reason" class="form-control" placeholder="Wajib diisi untuk approval manager..."></textarea>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: 'Ajukan Approval',
+                        preConfirm: () => {
+                            const method = document.getElementById('swal-method').value;
+                            const status = document.getElementById('swal-status').value;
+                            const reason = document.getElementById('swal-reason').value;
+                            if (!reason) return Swal.showValidationMessage('Alasan wajib diisi!');
+                            return { method, status, reason };
+                        }
+                    });
+
+                    if (formValues) {
+                        const res = await axios.put(`/payments/${id}`, formValues);
+                        if (res.status === 202) {
+                            Swal.fire('Menunggu Approval', res.data.message, 'info');
+                        } else {
+                            Swal.fire('Berhasil', 'Pembayaran diperbarui.', 'success');
+                        }
+                        loadViewData('view-payments');
+                    }
+                } catch (error) { Swal.fire('Error', error.response?.data?.message || 'Gagal memproses', 'error'); }
+            };
+
+            window.handleDeletePayment = (id) => {
+                // Feature removed for Kasir as per request
             };
 
             navLinks.forEach(link => {

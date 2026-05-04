@@ -17,7 +17,7 @@ use App\Services\ShipmentService;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Picqer\Barcode\BarcodeGeneratorPNG;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class ShipmentController extends Controller
 {
@@ -255,12 +255,11 @@ class ShipmentController extends Controller
             'customer',
         ]);
 
-        $generator = new BarcodeGeneratorPNG();
-        $barcode = base64_encode($generator->getBarcode($shipment->tracking_number, $generator::TYPE_CODE_128, 2, 70));
+        $qrcode = base64_encode(QrCode::format('svg')->size(150)->margin(1)->generate($shipment->tracking_number));
 
         $pdf = Pdf::loadView('pdf.shipment-label', [
             'shipment'         => $shipment,
-            'barcode'          => $barcode,
+            'qrcode'           => $qrcode,
             'originBranch'     => $shipment->branch,
             'destinationBranch'=> $shipment->destinationBranch,
             'latestPayment'    => $shipment->payments->sortByDesc('created_at')->first(),
@@ -285,10 +284,11 @@ class ShipmentController extends Controller
         $this->authorize('update', $shipment);
         $actor = $request->user();
 
-        // Kasir harus melalui approval manager untuk update
-        if ($actor?->role === 'kasir') {
-            return $this->requestKasirEditApproval($request, $shipment, 'shipment');
-        }
+        // Shipment update sekarang diizinkan langsung untuk kasir (tanpa approval)
+        // logic approval lama dihapus sesuai request:
+        // if ($actor?->role === 'kasir') {
+        //     return $this->requestKasirEditApproval($request, $shipment, 'shipment');
+        // }
 
         if ($actor?->role === 'courier') {
             abort(403, 'Kurir hanya boleh update status melalui endpoint tracking/transisi status.');
@@ -374,7 +374,7 @@ class ShipmentController extends Controller
             ]);
         }
 
-        if (array_key_exists('status_id', $validated) && $actor?->role !== 'manager' && $actor?->role !== 'admin') {
+        if (array_key_exists('status_id', $validated) && !in_array($actor?->role, ['manager', 'admin', 'kasir'], true)) {
             throw ValidationException::withMessages([
                 'status_id' => 'Status shipment hanya boleh diubah melalui prosedur transisi status.',
             ]);
@@ -440,9 +440,9 @@ class ShipmentController extends Controller
                     $newStatus->code,
                     $actor->id,
                     $request->input('location') ?? $shipment->branch?->name ?? 'Update Manual',
-                    $request->input('tracking_notes') ?? 'Status diperbarui secara manual melalui dashboard manager.',
-                    true, // force transition for managers/admins
-                    $validated['manual_override_reason'] ?? 'Update manual oleh manager/admin'
+                    $request->input('tracking_notes') ?? 'Status diperbarui secara manual melalui dashboard.',
+                    true, // force transition for managers/admins/kasir
+                    $validated['manual_override_reason'] ?? 'Update manual'
                 );
             }
         }
