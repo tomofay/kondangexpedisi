@@ -58,19 +58,30 @@ services:
     networks:
       - network-ujikom
 
-database:
-    image: mysql:8.0 # Menggunakan MySQL versi 8.0
+  database:
+    image: mysql:8.0
     restart: always
     ports:
       - "3306:3306"
     environment:
-      # Variabel environment khusus MySQL
-      MYSQL_ROOT_PASSWORD: password123
-      MYSQL_DATABASE: kondangekspedisi
+      MYSQL_ROOT_PASSWORD: rahasia
+      MYSQL_DATABASE: laravel_db
     volumes:
       - volume-ujikom:/var/lib/mysql
     networks:
       - network-ujikom
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: always
+    ports:
+      - "8081:80"
+    environment:
+      - PMA_HOST=database
+    networks:
+      - network-ujikom
+    depends_on:
+      - database
 
   loadbalancer:
     image: nginx:alpine
