@@ -64,8 +64,8 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: rahasia
-      MYSQL_DATABASE: laravel_db
+      MYSQL_ROOT_PASSWORD: password123
+      MYSQL_DATABASE: kondangekspedisi
     volumes:
       - volume-ujikom:/var/lib/mysql
     networks:
