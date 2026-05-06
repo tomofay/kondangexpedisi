@@ -1,0 +1,94 @@
+events {}
+http {
+    server {
+        listen 80;
+        location / {
+            proxy_pass http://web;
+            proxy_set_header Host $host;
+        }
+    }
+}
+
+FROM node:20-alpine as frontend-builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM php:8.2-apache-bullseye 
+
+RUN apt-get update && apt-get install -y \
+    libpng-dev libjpeg-dev libfreetype6-dev libzip-dev zip unzip git \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql gd zip bcmath
+
+RUN a2enmod rewrite
+
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+COPY . .
+
+COPY --from=frontend-builder /app/public/build ./public/build
+
+RUN composer install --no-dev --optimize-autoloader
+
+RUN chown -R www-data:www-data storage bootstrap/cache && \
+    chmod -R 775 storage bootstrap/cache
+
+EXPOSE 80
+
+
+version: '3.8'
+
+services:
+  web:
+    build: .
+    restart: always
+    deploy:
+      replicas: 3
+    expose:
+      - "80"
+    networks:
+      - network-ujikom
+
+database:
+    image: mysql:8.0 # Menggunakan MySQL versi 8.0
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      # Variabel environment khusus MySQL
+      MYSQL_ROOT_PASSWORD: password123
+      MYSQL_DATABASE: kondangekspedisi
+    volumes:
+      - volume-ujikom:/var/lib/mysql
+    networks:
+      - network-ujikom
+
+  loadbalancer:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+    networks:
+      - network-ujikom
+
+networks:
+  network-ujikom:
+    name: network-ujikom
+    driver: bridge
+
+volumes:
+  volume-ujikom:
+    name: volume-ujikom
