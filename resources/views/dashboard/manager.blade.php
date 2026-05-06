@@ -165,6 +165,28 @@
         .swal2-confirm { background-color: #6366F1 !important; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important; border-radius: 12px !important; font-weight: 700 !important; }
         .swal2-cancel { border-radius: 12px !important; font-weight: 700 !important; }
         .swal2-popup { border-radius: 24px !important; }
+
+        /* Responsive Optimization */
+        @media (max-width: 991.98px) {
+            .dashboard-container { padding: 1rem; }
+            .card-pro { border-radius: 16px; padding: 1.25rem !important; }
+            .chart-container { height: 250px; }
+            .view-section > div:first-child { flex-direction: column; align-items: flex-start !important; gap: 1rem; }
+            .view-section > div:first-child > div:last-child { width: 100%; flex-wrap: wrap; gap: 0.75rem; }
+            .view-section > div:first-child > div:last-child > * { flex-grow: 1; margin: 0 !important; }
+            .view-section > div:first-child > div:last-child .input-group { width: 100% !important; }
+            .view-section > div:first-child > div:last-child input, 
+            .view-section > div:first-child > div:last-child select { width: 100% !important; }
+        }
+
+        @media (max-width: 767.98px) {
+            .filter-pill-container { overflow-x: auto; white-space: nowrap; max-width: calc(100vw - 3rem); padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
+            .filter-pill-container::-webkit-scrollbar { display: none; }
+            .table-modern td, .table-modern th { padding: 0.8rem 0.6rem; font-size: 0.8rem; }
+            .status-pill { padding: 4px 10px; font-size: 0.7rem; }
+            .btn-action-sm { width: 32px; height: 32px; }
+            .h4 { font-size: 1.25rem; }
+        }
     </style>
 
     <x-slot name="header">
@@ -518,6 +540,7 @@
             statuses: [],
             couriers: []
         };
+        const userBranchId = {{ auth()->user()->branch_id ?? 'null' }};
 
         const getStatusClass = (code) => {
             return 'status-pill status-' + code;
@@ -718,8 +741,21 @@
                             tbody.innerHTML = response.data.data.map(item => `
                                 <tr class="hover-row">
                                     <td>
-                                        <div class="fw-extrabold text-primary" style="font-size: 1rem;">${escapeHtml(item.tracking_number)}</div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="fw-extrabold text-primary" style="font-size: 1rem;">${escapeHtml(item.tracking_number)}</div>
+                                            <span class="badge ${item.branch_id == userBranchId ? 'bg-indigo-light text-primary' : 'bg-success-light text-success'} rounded-pill" style="font-size: 0.6rem; letter-spacing: 0.5px;">
+                                                <i class="bi ${item.branch_id == userBranchId ? 'bi-box-arrow-up' : 'bi-box-arrow-in-down'} me-1"></i>
+                                                ${item.branch_id == userBranchId ? 'Keluar (ke ' + escapeHtml(item.destination_branch?.name || 'Unknown') + ')' : 'Masuk (dari ' + escapeHtml(item.branch?.name || 'Unknown') + ')'}
+                                            </span>
+                                        </div>
                                         <div class="badge bg-light text-dark border-0 mt-1" style="font-size:0.6rem; letter-spacing: 0.5px;">${escapeHtml(item.service_type.toUpperCase())}</div>
+                                        <div class="mt-2 d-flex flex-wrap gap-1">
+                                            ${(item.items || []).map(i => `
+                                                <span class="badge rounded-pill bg-white text-dark border shadow-sm" style="font-size: 0.6rem; font-weight: 600;">
+                                                    <i class="bi bi-box-seam text-primary me-1"></i>${escapeHtml(i.item_name)} (${i.quantity}) - ${i.weight_kg}kg
+                                                </span>
+                                            `).join('') || '<span class="text-muted small italic">No Items</span>'}
+                                        </div>
                                     </td>
                                     <td>
                                         <div class="small fw-bold text-dark">${escapeHtml(item.sender_name)}</div>
@@ -812,7 +848,6 @@
                                                 </button>
                                             ` : ''}
                                             <button class="btn-action-sm btn-edit shadow-sm" onclick="handleEditPayment(${item.id})"><i class="bi bi-pencil-square"></i></button>
-                                            <button class="btn-action-sm btn-delete shadow-sm" onclick="handleDeletePayment(${item.id})"><i class="bi bi-trash"></i></button>
                                         </div>
                                     </td>
                                 </tr>`).join('') || '<tr><td colspan="6" class="text-center py-4">No data found.</td></tr>';
@@ -855,7 +890,10 @@
                                         </span>
                                     </td>
                                     <td class="text-end">
-                                        <button class="btn-action-sm btn-edit shadow-sm" onclick="handleEditUser(${item.id})"><i class="bi bi-pencil-square"></i></button>
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <button class="btn-action-sm btn-edit shadow-sm" title="Edit Staff" onclick="handleEditUser(${item.id})"><i class="bi bi-pencil-square"></i></button>
+                                            <button class="btn-action-sm btn-delete shadow-sm" title="Hapus Staff" onclick="handleDeleteUser(${item.id})"><i class="bi bi-trash"></i></button>
+                                        </div>
                                     </td>
                                 </tr>`).join('') || '<tr><td colspan="4" class="text-center py-4">No data found.</td></tr>';
                             renderPagination(pagination, response.data, viewId);
@@ -1096,19 +1134,34 @@
                     focusConfirm: false,
                     showCancelButton: true,
                     confirmButtonText: 'Ajukan Perubahan',
-                    preConfirm: () => {
-                        return {
+                    preConfirm: async () => {
+                        const payload = {
                             base_price: document.getElementById('swal-base').value,
                             per_kg_price: document.getElementById('swal-kg').value,
                             estimated_days: document.getElementById('swal-est').value,
                             reason: document.getElementById('swal-reason').value
+                        };
+                        if (!payload.reason) {
+                            Swal.showValidationMessage('Alasan perubahan wajib diisi.');
+                            return false;
+                        }
+                        try {
+                            const response = await axios.put(`/rate-cards/${id}`, payload);
+                            return response.data;
+                        } catch (error) {
+                            let msg = error.response?.data?.message || 'Gagal memproses data.';
+                            if (error.response?.data?.errors) {
+                                const errs = error.response.data.errors;
+                                const firstKey = Object.keys(errs)[0];
+                                if (firstKey) msg = errs[firstKey][0];
+                            }
+                            Swal.showValidationMessage(msg);
+                            return false;
                         }
                     }
                 });
 
                 if (formValues) {
-                    if (!formValues.reason) return Swal.fire('Error', 'Alasan perubahan wajib diisi.', 'error');
-                    await axios.put(`/rate-cards/${id}`, formValues);
                     Swal.fire('Berhasil', 'Permintaan perubahan rate card telah dikirim ke Admin.', 'success');
                 }
             } catch (e) {
@@ -1229,6 +1282,26 @@
                 Swal.fire('Error', 'Gagal memproses data.', 'error');
             }
         }
+
+        async function handleDeleteUser(id) {
+            const { isConfirmed } = await Swal.fire({
+                title: 'Hapus Staff?',
+                text: "Tindakan ini akan menghapus akses staff tersebut secara permanen.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#DC2626',
+                confirmButtonText: 'Ya, Hapus!'
+            });
+
+            if (isConfirmed) {
+                try {
+                    await axios.delete(`/users/${id}`);
+                    Swal.fire('Terhapus', 'Staff telah dihapus.', 'success').then(() => loadViewData('view-users'));
+                } catch (e) {
+                    Swal.fire('Error', e.response?.data?.message || 'Gagal menghapus staff.', 'error');
+                }
+            }
+        }
         async function handleAddVehicle() {
             const userBranchId = {{ auth()->user()->branch_id }};
             const { value: formValues } = await Swal.fire({
@@ -1346,44 +1419,54 @@
 
         async function handleAddShipment() {
             const userBranchId = {{ auth()->user()->branch_id }};
+            let items = [{ id: Date.now(), name: '', qty: 1, weight: 0.1, notes: '' }];
+            
             const { value: formValues } = await Swal.fire({
                 title: 'Tambah Shipment Baru',
+                width: '800px',
                 html: `
                     <div class="text-start" style="font-size: 0.85rem;">
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="fw-bold mb-1">Pengirim</label>
-                                <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6 border-end">
+                                <h6 class="fw-bold text-primary mb-3"><i class="bi bi-person-fill me-2"></i>Informasi Pengirim</h6>
+                                <div class="mb-2">
+                                    <label class="fw-bold mb-1">Nama Pengirim</label>
+                                    <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="fw-bold mb-1">HP Pengirim</label>
+                                    <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="fw-bold mb-1">Alamat Pengirim</label>
+                                    <textarea id="swal-s-addr" class="form-control form-control-sm" rows="2"></textarea>
+                                </div>
                             </div>
-                            <div class="col-6">
-                                <label class="fw-bold mb-1">HP Pengirim</label>
-                                <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                            <div class="col-md-6">
+                                <h6 class="fw-bold text-primary mb-3"><i class="bi bi-geo-alt-fill me-2"></i>Informasi Penerima</h6>
+                                <div class="mb-2">
+                                    <label class="fw-bold mb-1">Nama Penerima</label>
+                                    <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="fw-bold mb-1">HP Penerima</label>
+                                    <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="fw-bold mb-1">Alamat Penerima</label>
+                                    <textarea id="swal-r-addr" class="form-control form-control-sm" rows="2"></textarea>
+                                </div>
                             </div>
                         </div>
-                        <label class="fw-bold mb-1">Alamat Pengirim</label>
-                        <textarea id="swal-s-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
-                        
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="fw-bold mb-1">Penerima</label>
-                                <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
-                            </div>
-                            <div class="col-6">
-                                <label class="fw-bold mb-1">HP Penerima</label>
-                                <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
-                            </div>
-                        </div>
-                        <label class="fw-bold mb-1">Alamat Penerima</label>
-                        <textarea id="swal-r-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
 
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
+                        <div class="row g-2 mb-3 p-3 bg-light rounded-4">
+                            <div class="col-md-4">
                                 <label class="fw-bold mb-1">Cabang Tujuan</label>
                                 <select id="swal-dest" class="form-select form-select-sm">
                                     ${state.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
                                 </select>
                             </div>
-                            <div class="col-6">
+                            <div class="col-md-4">
                                 <label class="fw-bold mb-1">Layanan</label>
                                 <select id="swal-service" class="form-select form-select-sm">
                                     <option value="regular">REGULAR</option>
@@ -1392,22 +1475,130 @@
                                     <option value="economy">ECONOMY</option>
                                 </select>
                             </div>
+                            <div class="col-md-4">
+                                <label class="fw-bold mb-1 text-primary">Total Berat (Kg)</label>
+                                <input id="swal-weight" class="form-control form-control-sm fw-bold border-primary" type="number" step="0.1" value="0.1" readonly>
+                            </div>
                         </div>
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="fw-bold mb-1">Berat (Kg)</label>
-                                <input id="swal-weight" class="form-control form-control-sm" type="number" step="0.1" value="1">
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold m-0"><i class="bi bi-list-check me-2"></i>Daftar Item</h6>
+                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="window.addSwalItem()">
+                                    <i class="bi bi-plus-lg me-1"></i>Tambah Item
+                                </button>
                             </div>
-                            <div class="col-6">
-                                <label class="fw-bold mb-1">Notes</label>
-                                <input id="swal-notes" class="form-control form-control-sm">
+                            <div id="swal-items-container" class="border rounded-4 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Items rendered here -->
                             </div>
+                        </div>
+
+                        <div id="swal-pricing-preview" class="p-3 rounded-4 bg-primary text-white d-flex justify-content-between align-items-center shadow-sm">
+                            <div class="small fw-bold text-uppercase">Estimasi Biaya Pengiriman</div>
+                            <div class="h4 fw-bold mb-0" id="swal-quote-amount">Rp -</div>
                         </div>
                     </div>
                 `,
+                didOpen: () => {
+                    window.renderSwalItems = () => {
+                        const container = document.getElementById('swal-items-container');
+                        container.innerHTML = items.map((item, index) => `
+                            <div class="row g-2 mb-2 align-items-end border-bottom pb-2">
+                                <div class="col-4">
+                                    <label class="small fw-bold">Nama Barang</label>
+                                    <input class="form-control form-control-sm item-input" data-index="${index}" data-field="name" value="${escapeHtml(item.name)}" placeholder="cth: Baju">
+                                </div>
+                                <div class="col-2">
+                                    <label class="small fw-bold">Qty</label>
+                                    <input type="number" class="form-control form-control-sm item-input" data-index="${index}" data-field="qty" value="${item.qty}" min="1">
+                                </div>
+                                <div class="col-2">
+                                    <label class="small fw-bold">Berat (Kg)</label>
+                                    <input type="number" step="0.1" class="form-control form-control-sm item-input" data-index="${index}" data-field="weight" value="${item.weight}" min="0.1">
+                                </div>
+                                <div class="col-3">
+                                    <label class="small fw-bold">Catatan</label>
+                                    <input class="form-control form-control-sm item-input" data-index="${index}" data-field="notes" value="${escapeHtml(item.notes)}">
+                                </div>
+                                <div class="col-1 text-end">
+                                    <button type="button" class="btn btn-sm text-danger p-1" onclick="window.removeSwalItem(${index})">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('');
+                        
+                        container.querySelectorAll('.item-input').forEach(input => {
+                            input.addEventListener('change', (e) => {
+                                const idx = e.target.dataset.index;
+                                const field = e.target.dataset.field;
+                                items[idx][field] = field === 'qty' || field === 'weight' ? parseFloat(e.target.value) : e.target.value;
+                                window.recalculateTotals();
+                            });
+                        });
+                        window.recalculateTotals();
+                    };
+
+                    window.addSwalItem = () => {
+                        items.push({ id: Date.now(), name: '', qty: 1, weight: 0.1, notes: '' });
+                        window.renderSwalItems();
+                    };
+
+                    window.removeSwalItem = (index) => {
+                        if (items.length > 1) {
+                            items.splice(index, 1);
+                            window.renderSwalItems();
+                        }
+                    };
+
+                    window.recalculateTotals = () => {
+                        const totalWeight = items.reduce((sum, item) => sum + (item.weight * item.qty), 0);
+                        document.getElementById('swal-weight').value = totalWeight.toFixed(1);
+                        window.updateQuote();
+                    };
+
+                    let quoteDebounceTimer;
+                    window.updateQuote = () => {
+                        clearTimeout(quoteDebounceTimer);
+                        quoteDebounceTimer = setTimeout(async () => {
+                            const destId = document.getElementById('swal-dest').value;
+                            const service = document.getElementById('swal-service').value;
+                            const weight = document.getElementById('swal-weight').value;
+                            const quoteEl = document.getElementById('swal-quote-amount');
+
+                            if (!destId || !weight) return;
+
+                            quoteEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menghitung...';
+                            try {
+                                const { data } = await axios.get('/shipments/quote', {
+                                    params: {
+                                        branch_id: userBranchId,
+                                        destination_branch_id: destId,
+                                        total_weight_kg: weight,
+                                        service_type: service
+                                    }
+                                });
+                                quoteEl.innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.data.total_amount);
+                            } catch (e) {
+                                quoteEl.innerText = 'Error';
+                            }
+                        }, 400); // 400ms debounce
+                    };
+
+                    ['swal-dest', 'swal-service'].forEach(id => {
+                        document.getElementById(id).addEventListener('change', window.updateQuote);
+                    });
+
+                    window.renderSwalItems();
+                },
                 showCancelButton: true,
                 confirmButtonText: 'Simpan Shipment',
                 preConfirm: () => {
+                    const totalWeight = parseFloat(document.getElementById('swal-weight').value);
+                    if (totalWeight <= 0) {
+                        Swal.showValidationMessage('Total berat harus lebih dari 0');
+                        return false;
+                    }
                     return {
                         branch_id: userBranchId,
                         destination_branch_id: document.getElementById('swal-dest').value,
@@ -1418,8 +1609,9 @@
                         recipient_phone: document.getElementById('swal-r-phone').value,
                         recipient_address: document.getElementById('swal-r-addr').value,
                         service_type: document.getElementById('swal-service').value,
-                        total_weight_kg: document.getElementById('swal-weight').value,
-                        notes: document.getElementById('swal-notes').value
+                        total_weight_kg: totalWeight,
+                        items: items,
+                        notes: 'Multiple items created via Manager'
                     }
                 }
             });
@@ -1475,6 +1667,12 @@
                                 <input id="swal-location" class="form-control form-control-sm mb-1" placeholder="Lokasi saat ini (cth: Cabang Bandung)" value="${escapeHtml(s.branch?.name || '')}">
                                 <input id="swal-tracking-notes" class="form-control form-control-sm" placeholder="Catatan tracking (cth: Paket keluar dari gudang)" value="Status diperbarui oleh Manager">
                             </div>
+                            <div class="mb-2 p-2 bg-white border rounded-3">
+                                <label class="fw-bold mb-1 small text-indigo">Daftar Item (${s.items?.length || 0})</label>
+                                <div style="font-size: 0.75rem; max-height: 80px; overflow-y: auto;">
+                                    ${(s.items || []).map(i => `<div class="d-flex justify-content-between border-bottom py-1"><span>${escapeHtml(i.item_name)}</span><span class="fw-bold">${i.quantity} pcs</span></div>`).join('') || 'No Items'}
+                                </div>
+                            </div>
                             <hr class="my-2">
                             <label class="fw-bold mb-1">Penerima</label>
                             <input id="swal-r-name" class="form-control form-control-sm mb-2" value="${escapeHtml(s.recipient_name || '')}">
@@ -1488,8 +1686,8 @@
                     `,
                     showCancelButton: true,
                     confirmButtonText: 'Update Shipment',
-                    preConfirm: () => {
-                        return {
+                    preConfirm: async () => {
+                        const payload = {
                             status_id: document.getElementById('swal-status-id').value,
                             courier_id: document.getElementById('swal-courier-id').value,
                             destination_branch_id: document.getElementById('swal-dest-id').value,
@@ -1503,16 +1701,34 @@
                             tracking_notes: document.getElementById('swal-tracking-notes').value,
                             manual_override: false,
                             manual_override_reason: document.getElementById('swal-notes').value
+                        };
+                        try {
+                            const response = await axios.put(`/shipments/${id}`, payload);
+                            return response.data;
+                        } catch (error) {
+                            let msg = error.response?.data?.message || 'Gagal memproses data.';
+                            if (error.response?.data?.errors) {
+                                const errs = error.response.data.errors;
+                                const firstKey = Object.keys(errs)[0];
+                                if (firstKey) msg = errs[firstKey][0];
+                            }
+                            Swal.showValidationMessage(msg);
+                            return false;
                         }
                     }
                 });
 
                 if (formValues) {
-                    await axios.put(`/shipments/${id}`, formValues);
-                    Swal.fire('Berhasil', 'Shipment diperbarui.', 'success').then(() => loadViewData('view-shipments'));
+                    Swal.fire({
+                        title: 'Berhasil',
+                        text: 'Shipment diperbarui.',
+                        icon: 'success',
+                        confirmButtonColor: '#6366F1',
+                        customClass: { popup: 'rounded-4' }
+                    }).then(() => loadViewData('view-shipments'));
                 }
             } catch (e) {
-                Swal.fire('Error', 'Gagal memproses data.', 'error');
+                console.error(e);
             }
         }
 
@@ -1590,8 +1806,7 @@
                     title: 'Edit Payment',
                     html: `
                         <div class="text-start">
-                            <p class="small text-muted mb-3"><i class="bi bi-shield-lock me-1"></i> Manager dapat merubah data pembayaran secara langsung (Manual Override).</p>
-                            
+                           
                             <label class="small fw-bold text-uppercase" style="font-size:0.65rem; letter-spacing:0.5px;">Metode Pembayaran</label>
                             <select id="swal-method" class="form-select mb-3 rounded-3 shadow-sm border-0 bg-light fw-bold">
                                 <option value="cash" ${p.method === 'cash' ? 'selected' : ''}>CASH</option>
@@ -1663,31 +1878,27 @@
             }
         }
 
-        async function handleDeletePayment(id) {
-            const { isConfirmed } = await Swal.fire({
-                title: 'Hapus Payment?',
-                text: "Tindakan ini tidak dapat dibatalkan!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#DC2626',
-                confirmButtonText: 'Ya, Hapus!'
-            });
-
-            if (isConfirmed) {
-                try {
-                    await axios.delete(`/payments/${id}`);
-                    Swal.fire('Terhapus', 'Payment telah dihapus.', 'success').then(() => loadViewData('view-payments'));
-                } catch (e) {
-                    Swal.fire('Error', 'Gagal menghapus payment.', 'error');
-                }
-            }
-        }
-        async function handleViewHistory(id) {
+              async function handleViewHistory(id) {
             try {
                 const { data: s } = await axios.get(`/shipments/${id}`);
                 const trackings = s.trackings || [];
                 
                 let historyHtml = '<div class="text-start" style="font-size: 0.85rem;">';
+                
+                // Item Summary
+                historyHtml += `
+                    <div class="mb-4 p-3 bg-light rounded-4 border">
+                        <h6 class="fw-bold mb-2 small text-primary"><i class="bi bi-box-seam me-2"></i>Rincian Barang</h6>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${(s.items || []).map(i => `
+                                <span class="badge bg-white text-dark border px-2 py-1" style="font-size: 0.65rem;">
+                                    ${escapeHtml(i.item_name)} (${i.quantity} pcs) - ${i.weight_kg}kg
+                                </span>
+                            `).join('') || '<span class="text-muted italic">Tidak ada rincian</span>'}
+                        </div>
+                    </div>
+                `;
+
                 if (trackings.length === 0) {
                     historyHtml += '<p class="text-center text-muted py-3">Belum ada riwayat tracking.</p>';
                 } else {
@@ -1712,6 +1923,15 @@
                                     <i class="bi bi-info-circle text-info" style="font-size: 0.75rem; margin-top: 2px;"></i>
                                     <span>${escapeHtml(t.notes)}</span>
                                 </div>` : ''}
+                                ${(t.proofs || []).length > 0 ? `
+                                    <div class="mt-2 d-flex gap-2 flex-wrap">
+                                        ${t.proofs.map(p => `
+                                            <a href="/storage/${p.file_path}" target="_blank" class="d-block rounded-3 border overflow-hidden shadow-sm hover-scale" style="width: 80px; height: 60px;">
+                                                <img src="/storage/${p.file_path}" class="w-100 h-100 object-fit-cover" alt="Proof">
+                                            </a>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
                             </div>
                         `;
                     });

@@ -149,29 +149,8 @@ class PaymentController extends Controller
         $this->authorize('update', $payment);
         $actor = $request->user();
 
-        // Kasir harus melalui approval manager
-        if ($actor?->role === 'kasir') {
-            $validated = $request->validate([
-                'reason' => ['required', 'string', 'max:500'],
-            ]);
-
-            $changes = $request->except(['reason', '_token', '_method']);
-
-            $task = $approvalWorkflowService->requestKasirEditApproval(
-                $payment,
-                $actor,
-                $changes,
-                $validated['reason']
-            );
-
-            return response()->json([
-                'message' => 'Permintaan perubahan dikirim ke manager untuk disetujui.',
-                'data' => [
-                    'task_id' => $task->id,
-                    'task_status' => $task->status,
-                ],
-            ], 202);
-        }
+        // Removed mandatory kasir approval requirement to streamline counter operations.
+        // Direct updates are now allowed for all authorized roles.
 
         $before = $payment->only(['status', 'method', 'notes']);
 

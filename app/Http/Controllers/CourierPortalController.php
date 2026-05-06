@@ -22,15 +22,15 @@ class CourierPortalController extends Controller
         // Dashboard: Only show max 3 active (non-delivered) shipments
         $tasks = Shipment::query()
             ->where('courier_id', $courier->id)
-            ->where('status_id', '!=', 8) // Exclude delivered
-            ->with(['status', 'branch'])
+            ->whereHas('status', function($q) { $q->where('is_final', false); })
+            ->with(['status', 'branch', 'destinationBranch'])
             ->latest()
             ->take(3)
             ->get();
 
         $stats = [
-            'pending' => Shipment::where('courier_id', $courier->id)->where('status_id', '!=', 8)->count(),
-            'completed' => Shipment::where('courier_id', $courier->id)->where('status_id', 8)->count(),
+            'pending' => Shipment::where('courier_id', $courier->id)->whereHas('status', function($q) { $q->where('is_final', false); })->count(),
+            'completed' => Shipment::where('courier_id', $courier->id)->whereHas('status', function($q) { $q->where('is_final', true); })->count(),
         ];
 
         return view('mobile.courier.tasks', compact('tasks', 'stats'));
@@ -41,8 +41,8 @@ class CourierPortalController extends Controller
         $courier = $request->user();
         $query = Shipment::query()
             ->where('courier_id', $courier->id)
-            ->where('status_id', '!=', 8) // Exclude delivered
-            ->with(['status', 'branch']);
+            ->whereHas('status', function($q) { $q->where('is_final', false); })
+            ->with(['status', 'branch', 'destinationBranch']);
 
         // Search
         if ($request->filled('search')) {
@@ -60,7 +60,7 @@ class CourierPortalController extends Controller
         }
 
         $shipments = $query->latest()->get();
-        $statuses = ShipmentStatus::where('code', '!=', 'delivered')->get();
+        $statuses = ShipmentStatus::where('is_final', false)->get();
 
         return view('mobile.courier.all_tasks', compact('shipments', 'statuses'));
     }
@@ -112,7 +112,7 @@ class CourierPortalController extends Controller
     {
         abort_unless((int) $shipment->courier_id === (int) auth()->id(), 403);
         
-        $shipment->load(['status', 'trackings.status', 'branch']);
+        $shipment->load(['status', 'trackings.status', 'branch', 'destinationBranch']);
         $courier = auth()->user()->load('branch');
         
         return view('mobile.courier.update_status', compact('shipment', 'courier'));
@@ -127,7 +127,7 @@ class CourierPortalController extends Controller
 
         $shipments = Shipment::whereIn('id', $request->shipment_ids)
             ->where('courier_id', auth()->id())
-            ->with(['status', 'branch'])
+            ->with(['status', 'branch', 'destinationBranch'])
             ->get();
 
         abort_if($shipments->isEmpty(), 403);
@@ -149,7 +149,7 @@ class CourierPortalController extends Controller
                 Rule::requiredIf(fn () => in_array($request->status_code, ['delivered', 'failed_delivery', 'returned'])),
                 'nullable',
                 'image', 
-                'max:5120'
+                'max:15360'
             ],
             'gps_lat' => 'nullable|numeric',
             'gps_lng' => 'nullable|numeric',

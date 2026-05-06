@@ -178,6 +178,28 @@
         .swal2-confirm { background-color: #6366F1 !important; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important; border-radius: 12px !important; font-weight: 700 !important; }
         .swal2-cancel { border-radius: 12px !important; font-weight: 700 !important; }
         .swal2-popup { border-radius: 24px !important; }
+
+        /* Responsive Optimization */
+        @media (max-width: 991.98px) {
+            .dashboard-container { padding: 1rem; }
+            .card-pro { border-radius: 16px; padding: 1.25rem !important; }
+            .chart-container { height: 250px; }
+            .view-section > div:first-child { flex-direction: column; align-items: flex-start !important; gap: 1rem; }
+            .view-section > div:first-child > div:last-child { width: 100%; flex-wrap: wrap; gap: 0.75rem; }
+            .view-section > div:first-child > div:last-child > * { flex-grow: 1; margin: 0 !important; }
+            .view-section > div:first-child > div:last-child .input-group { width: 100% !important; }
+            .view-section > div:first-child > div:last-child input, 
+            .view-section > div:first-child > div:last-child select { width: 100% !important; }
+        }
+
+        @media (max-width: 767.98px) {
+            .filter-pill-container { overflow-x: auto; white-space: nowrap; max-width: calc(100vw - 3rem); padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
+            .filter-pill-container::-webkit-scrollbar { display: none; }
+            .table-modern td, .table-modern th { padding: 0.8rem 0.6rem; font-size: 0.8rem; }
+            .status-pill { padding: 4px 10px; font-size: 0.7rem; }
+            .btn-action-sm { width: 32px; height: 32px; }
+            .h4 { font-size: 1.25rem; }
+        }
     </style>
 
 
@@ -372,6 +394,7 @@
             statuses: [],
             couriers: []
         };
+        const userBranchId = {{ auth()->user()->branch_id ?? 'null' }};
 
         const escapeHtml = (unsafe) => {
             if (unsafe === null || unsafe === undefined) return '';
@@ -572,8 +595,21 @@
                             tbody.innerHTML = response.data.data.map(item => `
                                 <tr class="hover-row">
                                     <td>
-                                        <div class="fw-extrabold text-primary" style="font-size: 1rem;">${escapeHtml(item.tracking_number)}</div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="fw-extrabold text-primary" style="font-size: 1rem;">${escapeHtml(item.tracking_number)}</div>
+                                            <span class="badge ${item.branch_id == userBranchId ? 'bg-indigo-light text-primary' : 'bg-success-light text-success'} rounded-pill" style="font-size: 0.6rem; letter-spacing: 0.5px;">
+                                                <i class="bi ${item.branch_id == userBranchId ? 'bi-box-arrow-up' : 'bi-box-arrow-in-down'} me-1"></i>
+                                                ${item.branch_id == userBranchId ? 'Keluar (ke ' + escapeHtml(item.destination_branch?.name || 'Unknown') + ')' : 'Masuk (dari ' + escapeHtml(item.branch?.name || 'Unknown') + ')'}
+                                            </span>
+                                        </div>
                                         <div class="badge bg-light text-dark border-0 mt-1" style="font-size:0.6rem; letter-spacing: 0.5px;">${escapeHtml(item.service_type.toUpperCase())}</div>
+                                        <div class="mt-2 d-flex flex-wrap gap-1">
+                                            ${(item.items || []).map(i => `
+                                                <span class="badge rounded-pill bg-white text-dark border shadow-sm" style="font-size: 0.6rem; font-weight: 600;">
+                                                    <i class="bi bi-box-seam text-primary me-1"></i>${escapeHtml(i.item_name)} (${i.quantity}) - ${i.weight_kg}kg
+                                                </span>
+                                            `).join('') || '<span class="text-muted small italic">No Items</span>'}
+                                        </div>
                                     </td>
                                     <td>
                                         <div class="small fw-bold text-dark">${escapeHtml(item.sender_name)}</div>
@@ -651,44 +687,54 @@
             // SHIPMENT HANDLERS
             window.handleAddShipment = async () => {
                 const userBranchId = {{ auth()->user()->branch_id }};
+                let items = [{ id: Date.now(), name: '', qty: 1, weight: 0.1, notes: '' }];
+                
                 const { value: formValues } = await Swal.fire({
                     title: 'Tambah Shipment Baru',
+                    width: '800px',
                     html: `
                         <div class="text-start" style="font-size: 0.85rem;">
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Pengirim</label>
-                                    <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6 border-end">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-person-fill me-2"></i>Informasi Pengirim</h6>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Nama Pengirim</label>
+                                        <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">HP Pengirim</label>
+                                        <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Alamat Pengirim</label>
+                                        <textarea id="swal-s-addr" class="form-control form-control-sm" rows="2"></textarea>
+                                    </div>
                                 </div>
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">HP Pengirim</label>
-                                    <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-geo-alt-fill me-2"></i>Informasi Penerima</h6>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Nama Penerima</label>
+                                        <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">HP Penerima</label>
+                                        <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Alamat Penerima</label>
+                                        <textarea id="swal-r-addr" class="form-control form-control-sm" rows="2"></textarea>
+                                    </div>
                                 </div>
                             </div>
-                            <label class="fw-bold mb-1">Alamat Pengirim</label>
-                            <textarea id="swal-s-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Penerima</label>
-                                    <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
-                                </div>
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">HP Penerima</label>
-                                    <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
-                                </div>
-                            </div>
-                            <label class="fw-bold mb-1">Alamat Penerima</label>
-                            <textarea id="swal-r-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
 
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
+                            <div class="row g-2 mb-3 p-3 bg-light rounded-4">
+                                <div class="col-md-4">
                                     <label class="fw-bold mb-1">Cabang Tujuan</label>
                                     <select id="swal-dest" class="form-select form-select-sm">
                                         ${state.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
                                     </select>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-md-4">
                                     <label class="fw-bold mb-1">Layanan</label>
                                     <select id="swal-service" class="form-select form-select-sm">
                                         <option value="regular">REGULAR</option>
@@ -697,19 +743,125 @@
                                         <option value="economy">ECONOMY</option>
                                     </select>
                                 </div>
+                                <div class="col-md-4">
+                                    <label class="fw-bold mb-1 text-primary">Total Berat (Kg)</label>
+                                    <input id="swal-weight" class="form-control form-control-sm fw-bold border-primary" type="number" step="0.1" value="0.1" readonly>
+                                </div>
                             </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Berat (Kg)</label>
-                                    <input id="swal-weight" class="form-control form-control-sm" type="number" step="0.1" value="1">
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-bold m-0"><i class="bi bi-list-check me-2"></i>Daftar Item</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="window.addSwalItem()">
+                                        <i class="bi bi-plus-lg me-1"></i>Tambah Item
+                                    </button>
                                 </div>
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Notes</label>
-                                    <input id="swal-notes" class="form-control form-control-sm">
+                                <div id="swal-items-container" class="border rounded-4 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
+                                    <!-- Items rendered here -->
                                 </div>
+                            </div>
+
+                            <div id="swal-pricing-preview" class="p-3 rounded-4 bg-primary text-white d-flex justify-content-between align-items-center shadow-sm">
+                                <div class="small fw-bold text-uppercase">Estimasi Biaya Pengiriman</div>
+                                <div class="h4 fw-bold mb-0" id="swal-quote-amount">Rp -</div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="fw-bold mb-1 small">Catatan Tambahan</label>
+                                <input id="swal-notes" class="form-control form-control-sm" placeholder="Opsional...">
                             </div>
                         </div>
                     `,
+                    didOpen: () => {
+                        window.renderSwalItems = () => {
+                            const container = document.getElementById('swal-items-container');
+                            container.innerHTML = items.map((item, index) => `
+                                <div class="row g-2 mb-2 align-items-end border-bottom pb-2">
+                                    <div class="col-4">
+                                        <label class="small fw-bold">Nama Barang</label>
+                                        <input class="form-control form-control-sm item-input" data-index="${index}" data-field="name" value="${escapeHtml(item.name)}" placeholder="cth: Baju">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="small fw-bold">Qty</label>
+                                        <input type="number" class="form-control form-control-sm item-input" data-index="${index}" data-field="qty" value="${item.qty}" min="1">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="small fw-bold">Berat (Kg)</label>
+                                        <input type="number" step="0.1" class="form-control form-control-sm item-input" data-index="${index}" data-field="weight" value="${item.weight}" min="0.1">
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="small fw-bold">Catatan</label>
+                                        <input class="form-control form-control-sm item-input" data-index="${index}" data-field="notes" value="${escapeHtml(item.notes)}">
+                                    </div>
+                                    <div class="col-1 text-end">
+                                        <button type="button" class="btn btn-sm text-danger p-1" onclick="window.removeSwalItem(${index})">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('');
+                            
+                            container.querySelectorAll('.item-input').forEach(input => {
+                                input.addEventListener('change', (e) => {
+                                    const idx = e.target.dataset.index;
+                                    const field = e.target.dataset.field;
+                                    items[idx][field] = field === 'qty' || field === 'weight' ? parseFloat(e.target.value) : e.target.value;
+                                    window.recalculateTotals();
+                                });
+                            });
+                            window.recalculateTotals();
+                        };
+
+                        window.addSwalItem = () => {
+                            items.push({ id: Date.now(), name: '', qty: 1, weight: 0.1, notes: '' });
+                            window.renderSwalItems();
+                        };
+
+                        window.removeSwalItem = (index) => {
+                            if (items.length <= 1) return;
+                            items.splice(index, 1);
+                            window.renderSwalItems();
+                        };
+
+                        window.recalculateTotals = () => {
+                            const totalWeight = items.reduce((sum, item) => sum + (item.weight * item.qty), 0);
+                            document.getElementById('swal-weight').value = totalWeight.toFixed(1);
+                            window.updateQuote();
+                        };
+
+                        let quoteDebounceTimer;
+                        window.updateQuote = () => {
+                            clearTimeout(quoteDebounceTimer);
+                            quoteDebounceTimer = setTimeout(async () => {
+                                const destId = document.getElementById('swal-dest').value;
+                                const service = document.getElementById('swal-service').value;
+                                const weight = document.getElementById('swal-weight').value;
+                                const quoteEl = document.getElementById('swal-quote-amount');
+
+                                if (!destId || !weight) return;
+
+                                quoteEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menghitung...';
+                                try {
+                                    const { data } = await axios.get('/shipments/quote', {
+                                        params: {
+                                            branch_id: userBranchId,
+                                            destination_branch_id: destId,
+                                            total_weight_kg: weight,
+                                            service_type: service
+                                        }
+                                    });
+                                    quoteEl.innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.data.total_amount);
+                                } catch (e) {
+                                    quoteEl.innerText = 'Error';
+                                }
+                            }, 400);
+                        };
+
+                        ['swal-dest', 'swal-service'].forEach(id => {
+                            document.getElementById(id).addEventListener('change', window.updateQuote);
+                        });
+
+                        window.renderSwalItems();
+                    },
                     showCancelButton: true,
                     confirmButtonText: 'Simpan Shipment',
                     preConfirm: () => {
@@ -724,6 +876,7 @@
                             recipient_address: document.getElementById('swal-r-addr').value,
                             service_type: document.getElementById('swal-service').value,
                             total_weight_kg: document.getElementById('swal-weight').value,
+                            items: items,
                             notes: document.getElementById('swal-notes').value
                         }
                     }
@@ -781,6 +934,17 @@
                                     <input id="swal-tracking-notes" class="form-control form-control-sm" placeholder="Catatan tracking" value="Status diperbarui oleh Kasir">
                                 </div>
                                 <hr class="my-2">
+                                <div class="mb-3">
+                                    <label class="fw-bold mb-1 small text-primary"><i class="bi bi-box-seam me-2"></i>Isi Paket (Read-only)</label>
+                                    <div class="p-2 rounded-3 bg-light border shadow-sm">
+                                        ${(s.items || []).map(i => `
+                                            <div class="d-flex justify-content-between small border-bottom mb-1 pb-1">
+                                                <span>${escapeHtml(i.item_name)}</span>
+                                                <span class="fw-bold">${i.quantity} pcs - ${i.weight_kg}kg</span>
+                                            </div>
+                                        `).join('') || '<div class="text-muted small">Tidak ada rincian barang.</div>'}
+                                    </div>
+                                </div>
                                 <label class="fw-bold mb-1">Penerima</label>
                                 <input id="swal-r-name" class="form-control form-control-sm mb-2" value="${escapeHtml(s.recipient_name || '')}">
                                 <label class="fw-bold mb-1">HP Penerima</label>
@@ -793,8 +957,8 @@
                         `,
                         showCancelButton: true,
                         confirmButtonText: 'Update Shipment',
-                        preConfirm: () => {
-                            return {
+                        preConfirm: async () => {
+                            const payload = {
                                 status_id: document.getElementById('swal-status-id').value,
                                 courier_id: document.getElementById('swal-courier-id').value,
                                 destination_branch_id: document.getElementById('swal-dest-id').value,
@@ -807,17 +971,36 @@
                                 location: document.getElementById('swal-location').value,
                                 tracking_notes: document.getElementById('swal-tracking-notes').value,
                                 manual_override: false,
-                                reason: document.getElementById('swal-notes').value || 'Update shipment oleh kasir',
-                                manual_override_reason: document.getElementById('swal-notes').value || 'Update shipment oleh kasir'
+                                manual_override_reason: document.getElementById('swal-notes').value
+                            };
+                            try {
+                                const response = await axios.put(`/shipments/${id}`, payload);
+                                return response.data;
+                            } catch (error) {
+                                let msg = error.response?.data?.message || 'Gagal memproses data.';
+                                if (error.response?.data?.errors) {
+                                    const errs = error.response.data.errors;
+                                    const firstKey = Object.keys(errs)[0];
+                                    if (firstKey) msg = errs[firstKey][0];
+                                }
+                                Swal.showValidationMessage(msg);
+                                return false;
                             }
                         }
                     });
 
                     if (formValues) {
-                        await axios.put(`/shipments/${id}`, formValues);
-                        Swal.fire('Berhasil', 'Shipment diperbarui.', 'success').then(() => loadViewData('view-shipments', 1));
+                        Swal.fire({
+                            title: 'Berhasil',
+                            text: 'Shipment diperbarui.',
+                            icon: 'success',
+                            confirmButtonColor: '#6366F1',
+                            customClass: { popup: 'rounded-4' }
+                        }).then(() => loadViewData('view-shipments', 1));
                     }
-                } catch (error) { Swal.fire('Error', 'Gagal memproses data.', 'error'); }
+                } catch (e) {
+                    console.error(e);
+                }
             };
 
             window.handleDeleteShipment = (id) => {
@@ -845,6 +1028,20 @@
                     const trackings = s.trackings || [];
                     
                     let historyHtml = '<div class="text-start" style="font-size: 0.85rem;">';
+                    
+                    historyHtml += `
+                        <div class="mb-4 p-3 bg-light rounded-4 border">
+                            <h6 class="fw-bold mb-2 small text-primary"><i class="bi bi-box-seam me-2"></i>Rincian Barang</h6>
+                            <div class="d-flex flex-wrap gap-1">
+                                ${(s.items || []).map(i => `
+                                    <span class="badge bg-white text-dark border px-2 py-1" style="font-size: 0.65rem;">
+                                        ${escapeHtml(i.item_name)} (${i.quantity} pcs) - ${i.weight_kg}kg
+                                    </span>
+                                `).join('') || '<span class="text-muted italic">Tidak ada rincian</span>'}
+                            </div>
+                        </div>
+                    `;
+
                     if (trackings.length === 0) {
                         historyHtml += '<p class="text-center text-muted py-3">Belum ada riwayat tracking.</p>';
                     } else {
@@ -869,6 +1066,15 @@
                                         <i class="bi bi-info-circle text-info" style="font-size: 0.75rem; margin-top: 2px;"></i>
                                         <span>${escapeHtml(t.notes)}</span>
                                     </div>` : ''}
+                                    ${(t.proofs || []).length > 0 ? `
+                                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                                            ${t.proofs.map(p => `
+                                                <a href="/storage/${p.file_path}" target="_blank" class="d-block rounded-3 border overflow-hidden shadow-sm hover-scale" style="width: 80px; height: 60px;">
+                                                    <img src="/storage/${p.file_path}" class="w-100 h-100 object-fit-cover" alt="Proof">
+                                                </a>
+                                            `).join('')}
+                                        </div>
+                                    ` : ''}
                                 </div>
                             `;
                         });
@@ -905,31 +1111,26 @@
                                 <label class="small fw-bold">Status</label>
                                 <select id="swal-status" class="form-select mb-3">
                                     <option value="pending" ${data.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="settlement" ${data.status === 'settlement' ? 'selected' : ''}>Settlement</option>
+                                    <option value="settlement" ${data.status === 'settlement' ? 'selected' : ''}>Settlement (Lunas)</option>
                                     <option value="cancel" ${data.status === 'cancel' ? 'selected' : ''}>Cancel</option>
                                 </select>
-                                <label class="small fw-bold">Alasan Perubahan</label>
-                                <textarea id="swal-reason" class="form-control" placeholder="Wajib diisi untuk approval manager..."></textarea>
+                                <label class="small fw-bold">Catatan</label>
+                                <textarea id="swal-notes" class="form-control" placeholder="Tambahkan catatan jika perlu...">${escapeHtml(data.notes || '')}</textarea>
                             </div>
                         `,
                         showCancelButton: true,
-                        confirmButtonText: 'Ajukan Approval',
+                        confirmButtonText: 'Simpan Perubahan',
                         preConfirm: () => {
                             const method = document.getElementById('swal-method').value;
                             const status = document.getElementById('swal-status').value;
-                            const reason = document.getElementById('swal-reason').value;
-                            if (!reason) return Swal.showValidationMessage('Alasan wajib diisi!');
-                            return { method, status, reason };
+                            const notes = document.getElementById('swal-notes').value;
+                            return { method, status, notes };
                         }
                     });
 
                     if (formValues) {
-                        const res = await axios.put(`/payments/${id}`, formValues);
-                        if (res.status === 202) {
-                            Swal.fire('Menunggu Approval', res.data.message, 'info');
-                        } else {
-                            Swal.fire('Berhasil', 'Pembayaran diperbarui.', 'success');
-                        }
+                        await axios.put(`/payments/${id}`, formValues);
+                        Swal.fire('Berhasil', 'Pembayaran diperbarui.', 'success');
                         loadViewData('view-payments');
                     }
                 } catch (error) { Swal.fire('Error', error.response?.data?.message || 'Gagal memproses', 'error'); }

@@ -117,8 +117,6 @@ class ShipmentService
 
         $weight = (float) ($data['total_weight_kg'] ?? 0);
         $serviceType = $data['service_type'] ?? 'regular';
-        $insuranceAmount = (float) ($data['insurance_amount'] ?? 0);
-        $adminFee = (float) ($data['admin_fee'] ?? 2500);
 
         if (! $destinationBranchId || ! $originBranchId) {
             throw ValidationException::withMessages([
@@ -173,12 +171,10 @@ class ShipmentService
 
             $baseAmount = $fallbackBasePrice + ($fallbackPerKgPrice * max($weight, 1));
             $subtotalAmount = (int) round($baseAmount);
-            $totalAmount = $subtotalAmount + (int) round($insuranceAmount) + (int) round($adminFee);
+            $totalAmount = $subtotalAmount;
 
             return [
                 'subtotal_amount' => $subtotalAmount,
-                'insurance_amount' => (int) round($insuranceAmount),
-                'admin_fee' => (int) round($adminFee),
                 'total_amount' => $totalAmount,
                 'rate_card_id' => null,
                 'calculation_mode' => 'fallback_estimate',
@@ -189,12 +185,10 @@ class ShipmentService
 
         $baseAmount = ((float) $rateCard->base_price) + ((float) $rateCard->per_kg_price * max($weight, 1));
         $subtotalAmount = (int) round($baseAmount);
-        $totalAmount = $subtotalAmount + (int) round($insuranceAmount) + (int) round($adminFee);
+        $totalAmount = $subtotalAmount;
 
         return [
             'subtotal_amount' => $subtotalAmount,
-            'insurance_amount' => (int) round($insuranceAmount),
-            'admin_fee' => (int) round($adminFee),
             'total_amount' => $totalAmount,
             'rate_card_id' => $rateCard->id,
             'calculation_mode' => 'rate_card',
@@ -327,8 +321,6 @@ class ShipmentService
         $amount = $manualOverride
             ? [
                 'subtotal_amount' => (int) round((float) ($data['subtotal_amount'] ?? 0)),
-                'insurance_amount' => (int) round((float) ($data['insurance_amount'] ?? 0)),
-                'admin_fee' => (int) round((float) ($data['admin_fee'] ?? 0)),
                 'total_amount' => (int) round((float) ($data['total_amount'] ?? 0)),
                 'calculation_mode' => 'manual_input',
                 'requires_manual_approval' => false,
@@ -357,12 +349,8 @@ class ShipmentService
             'total_weight_kg' => $data['total_weight_kg'],
             'total_volume' => $data['total_volume'] ?? 0,
             'subtotal_amount' => $amount['subtotal_amount'],
-            'insurance_amount' => $amount['insurance_amount'],
-            'admin_fee' => $amount['admin_fee'],
             'total_amount' => $amount['total_amount'],
             'auto_subtotal_amount' => $manualOverride ? null : $amount['subtotal_amount'],
-            'auto_insurance_amount' => $manualOverride ? null : $amount['insurance_amount'],
-            'auto_admin_fee' => $manualOverride ? null : $amount['admin_fee'],
             'auto_total_amount' => $manualOverride ? null : $amount['total_amount'],
             'corrected_total_amount' => $manualOverride ? $amount['total_amount'] : null,
             'payment_status' => 'pending',
@@ -389,13 +377,24 @@ class ShipmentService
         $shipment = DB::transaction(function () use ($payload, $pendingStatusId, $actor, $data) {
             $shipment = Shipment::query()->create($payload);
 
-            // Create Shipment Item
-            $shipment->items()->create([
-                'item_name' => $data['item_name'] ?? 'Paket',
-                'quantity' => $data['total_items'] ?? 1,
-                'weight_kg' => $data['total_weight_kg'] ?? 0,
-                'description' => $data['notes'] ?? null,
-            ]);
+            // Create Shipment Items
+            if (!empty($data['items']) && is_array($data['items'])) {
+                foreach ($data['items'] as $itemData) {
+                    $shipment->items()->create([
+                        'item_name' => $itemData['name'] ?? 'Paket',
+                        'quantity' => $itemData['qty'] ?? 1,
+                        'weight_kg' => $itemData['weight'] ?? 0,
+                        'description' => $itemData['notes'] ?? null,
+                    ]);
+                }
+            } else {
+                $shipment->items()->create([
+                    'item_name' => $data['item_name'] ?? 'Paket',
+                    'quantity' => $data['total_items'] ?? 1,
+                    'weight_kg' => $data['total_weight_kg'] ?? 0,
+                    'description' => $data['notes'] ?? null,
+                ]);
+            }
 
             $shipment->loadMissing('branch');
 
@@ -464,14 +463,10 @@ class ShipmentService
             'shipment_id' => $shipment->id,
             'current_amounts' => [
                 'subtotal_amount' => (float) $shipment->subtotal_amount,
-                'insurance_amount' => (float) $shipment->insurance_amount,
-                'admin_fee' => (float) $shipment->admin_fee,
                 'total_amount' => (float) $shipment->total_amount,
             ],
             'proposed_amounts' => [
                 'subtotal_amount' => (float) $amounts['subtotal_amount'],
-                'insurance_amount' => (float) $amounts['insurance_amount'],
-                'admin_fee' => (float) $amounts['admin_fee'],
                 'total_amount' => (float) $amounts['total_amount'],
             ],
             'reason' => $reason,
@@ -561,7 +556,7 @@ class ShipmentService
             ]);
         }
 
-        foreach (['subtotal_amount', 'insurance_amount', 'admin_fee', 'total_amount'] as $field) {
+        foreach (['subtotal_amount', 'total_amount'] as $field) {
             if (! array_key_exists($field, $proposed)) {
                 throw ValidationException::withMessages([
                     'shipment' => 'Data proposal tarif override tidak lengkap.',
@@ -577,8 +572,6 @@ class ShipmentService
                 $approver,
                 [
                     'subtotal_amount' => (float) $proposed['subtotal_amount'],
-                    'insurance_amount' => (float) $proposed['insurance_amount'],
-                    'admin_fee' => (float) $proposed['admin_fee'],
                     'total_amount' => (float) $proposed['total_amount'],
                 ],
                 $reason
@@ -817,8 +810,6 @@ class ShipmentService
                 'branch_id' => $shipment->branch_id,
                 'total_weight_kg' => $shipment->total_weight_kg,
                 'service_type' => $shipment->service_type,
-                'insurance_amount' => $shipment->insurance_amount,
-                'admin_fee' => $shipment->admin_fee,
             ]);
 
             $shipment->forceFill([

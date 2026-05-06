@@ -129,7 +129,7 @@ class PublicLandingController extends Controller
         }
 
         return response()->json([
-            'total' => (int) round($total + 2500), // Incl admin fee
+            'total' => (int) round($total), // Removed admin fee
             'service_type' => strtoupper($serviceType),
             'weight' => $weight,
         ]);

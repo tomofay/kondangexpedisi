@@ -48,13 +48,36 @@
                     <p class="text-blue-200/60 text-[10px] font-black uppercase tracking-[0.2em] leading-none">Nomor Resi</p>
                     <h3 class="text-3xl font-black italic tracking-tighter uppercase leading-none">{{ $shipment->tracking_number }}</h3>
                 </div>
-                <div class="flex items-center gap-3 pt-2">
-                    <div class="px-4 py-1.5 bg-white/10 backdrop-blur-xl rounded-xl border border-white/10">
-                        <span class="text-[9px] font-black uppercase tracking-widest">{{ $shipment->service_type }}</span>
-                    </div>
+                <div class="grid grid-cols-2 gap-4 pt-2">
                     <div class="flex flex-col">
                         <p class="text-[9px] font-black text-blue-300 uppercase tracking-widest leading-none mb-1">Penerima</p>
-                        <p class="text-xs font-bold text-white">{{ $shipment->recipient_name }}</p>
+                        <p class="text-xs font-bold text-white truncate">{{ $shipment->recipient_name }}</p>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="text-[9px] font-black text-blue-300 uppercase tracking-widest leading-none mb-1">Rute</p>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-black text-white truncate">{{ $shipment->branch->name }}</span>
+                            <i class="bi bi-arrow-right text-[10px] text-blue-300"></i>
+                            <span class="text-[10px] font-black text-white truncate">{{ $shipment->destinationBranch->name }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items List -->
+                <div class="mt-4 pt-4 border-t border-white/10">
+                    <p class="text-[9px] font-black text-blue-300 uppercase tracking-widest leading-none mb-2">Isi Paket</p>
+                    <div class="space-y-1.5">
+                        @forelse($shipment->items as $item)
+                            <div class="flex justify-between items-center text-[10px] bg-white/5 p-2 rounded-lg border border-white/5">
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-white/90">{{ $item->item_name }}</span>
+                                    <span class="text-[8px] text-white/40 uppercase tracking-tighter">{{ $item->weight_kg }} Kg / Item</span>
+                                </div>
+                                <span class="font-black text-blue-300">{{ $item->quantity }} Pcs</span>
+                            </div>
+                        @empty
+                            <p class="text-[10px] text-white/40 italic">Tidak ada rincian barang</p>
+                        @endforelse
                     </div>
                 </div>
             </div>

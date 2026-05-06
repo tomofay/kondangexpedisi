@@ -122,11 +122,7 @@
                 </div>
             </div>
 
-            <div class="col-12">
-                <div class="surface-card p-4 p-md-5 border border-danger-subtle">
-                    @include('profile.partials.delete-user-form')
-                </div>
-            </div>
+            {{-- Delete Account Section Removed --}}
         </div>
     </div>
 

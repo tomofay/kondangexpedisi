@@ -176,6 +176,12 @@
                 #main-wrapper {
                     margin-left: 0;
                 }
+                .content-area {
+                    padding: 1rem;
+                }
+                .top-navbar {
+                    padding: 0 1rem;
+                }
             }
         </style>
     </head>
@@ -242,9 +248,9 @@
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if(auth()->user()->role === 'admin'): ?>
+                <?php if(auth()->user()->role === 'admin' || auth()->user()->role === 'manager'): ?>
                 <li class="nav-item">
-                    <a href="<?php echo e(url('/users')); ?>" class="nav-link-custom <?php echo e(request()->is('users*') ? 'active' : ''); ?>">
+                    <a href="<?php echo e(auth()->user()->role === 'manager' ? route('dashboard') . '#view-users' : url('/users')); ?>" class="nav-link-custom <?php echo e(request()->is('users*') ? 'active' : ''); ?>">
                         <i class="bi bi-people-fill"></i>
                         <span class="nav-text">Manajemen User</span>
                     </a>
@@ -295,9 +301,13 @@
                         <span class="fw-bold text-dark" style="font-size: 0.9rem;"><?php echo e(auth()->user()->name); ?></span>
                         <span class="fw-bold text-primary text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;"><?php echo e(auth()->user()->role); ?></span>
                     </div>
-                    <div class="bg-primary text-white fw-bold d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,97,255,0.2);">
-                        <?php echo e(substr(auth()->user()->name, 0, 1)); ?>
+                    <div class="bg-primary text-white fw-bold d-flex align-items-center justify-content-center shadow-sm overflow-hidden" style="width: 42px; height: 42px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,97,255,0.2);">
+                        <?php if(auth()->user()->photo): ?>
+                            <img src="<?php echo e(asset('storage/' . auth()->user()->photo)); ?>" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php else: ?>
+                            <?php echo e(substr(auth()->user()->name, 0, 1)); ?>
 
+                        <?php endif; ?>
                     </div>
                 </a>
             </header>

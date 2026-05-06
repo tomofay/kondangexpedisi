@@ -25,11 +25,16 @@
             --k-shadow: 0 20px 40px rgba(0, 97, 255, 0.08);
         }
 
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            position: relative;
+        }
+
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             color: var(--text-main);
             background-color: var(--white);
-            overflow-x: hidden;
         }
 
         h1, h2, h3, h4, .font-sora { font-family: 'Sora', sans-serif; }
@@ -58,6 +63,7 @@
             padding: 180px 0 120px;
             background: radial-gradient(circle at 100% 0%, #F0F7FF 0%, #FFFFFF 60%);
             position: relative;
+            overflow: hidden;
         }
 
         .hero-title { font-size: 4rem; font-weight: 800; line-height: 1.1; color: var(--secondary); letter-spacing: -1.5px; }
@@ -286,11 +292,16 @@
             .navbar { background: white !important; padding: 0.8rem 0; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
             .navbar-collapse { 
                 background: white; 
-                margin-top: 0.5rem; 
-                padding: 1rem; 
-                border-radius: 15px; 
-                box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+                margin-top: 1rem; 
+                padding: 1.5rem; 
+                border-radius: 24px; 
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                border: 1px solid rgba(0,0,0,0.05);
+                position: relative;
+                z-index: 1000;
             }
+            .navbar .container { position: relative; }
+            .navbar { width: 100%; }
             .nav-item { width: 100%; text-align: center; margin: 8px 0; }
             .nav-link { margin: 0; padding: 8px 0; }
             .navbar-nav .ms-lg-3, .navbar-nav .ms-2 { margin-left: 0 !important; margin-top: 10px; width: 100%; }
@@ -331,10 +342,19 @@
                     <li class="nav-item"><a class="nav-link" href="#estimasi">Cek Tarif</a></li>
                     <li class="nav-item"><a class="nav-link" href="#tentang">Tentang Kami</a></li>
                     <li class="nav-item ms-lg-3">
-                        <a href="<?php echo e(route('login')); ?>" class="btn btn-outline-primary rounded-pill px-3 py-2 fw-bold">Masuk</a>
+                        <?php if(auth()->guard()->check()): ?>
+                            <?php
+                                $dashRoute = route('dashboard');
+                                if(auth()->user()->role === 'customer') $dashRoute = route('customer.dashboard');
+                                elseif(auth()->user()->role === 'courier') $dashRoute = route('courier.tasks');
+                            ?>
+                            <a href="<?php echo e($dashRoute); ?>" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">Dashboard</a>
+                        <?php else: ?>
+                            <a href="<?php echo e(route('login')); ?>" class="btn btn-outline-primary rounded-pill px-4 py-2 fw-bold">Masuk</a>
+                        <?php endif; ?>
                     </li>
                     <?php if(auth()->guard()->guest()): ?>
-                    <li class="nav-item ms-2">
+                    <li class="nav-item ms-lg-2">
                         <a href="<?php echo e(route('register')); ?>" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">Daftar Gratis</a>
                     </li>
                     <?php endif; ?>

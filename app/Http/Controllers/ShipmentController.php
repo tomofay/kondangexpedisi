@@ -36,7 +36,7 @@ class ShipmentController extends Controller
             : 'created_at';
         $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
 
-        $query = Shipment::query()->with(['branch', 'destinationBranch', 'courier', 'status']);
+        $query = Shipment::query()->with(['branch', 'destinationBranch', 'courier', 'status', 'items']);
 
         if (in_array($actor?->role, ['kasir', 'manager'], true)) {
             $branch = Branch::query()->find($actor->branch_id);
@@ -44,7 +44,10 @@ class ShipmentController extends Controller
             if (! $branch || ! $branch->is_active) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->where('branch_id', $branch->id);
+                $query->where(function ($q) use ($branch) {
+                    $q->where('branch_id', $branch->id)
+                        ->orWhere('destination_branch_id', $branch->id);
+                });
             }
         }
 
@@ -92,6 +95,30 @@ class ShipmentController extends Controller
         //
     }
 
+    public function quote(Request $request, ShipmentService $shipmentService)
+    {
+        $this->authorize('create', Shipment::class);
+
+        $validated = $request->validate([
+            'branch_id' => ['required', 'exists:branches,id'],
+            'destination_branch_id' => ['required', 'exists:branches,id'],
+            'total_weight_kg' => ['required', 'numeric', 'min:0'],
+            'service_type' => ['required', 'string'],
+        ]);
+
+        $calculation = $shipmentService->calculateTotalAmount([
+            'branch_id' => $validated['branch_id'],
+            'destination_branch_id' => $validated['destination_branch_id'],
+            'total_weight_kg' => $validated['total_weight_kg'],
+            'service_type' => $validated['service_type'],
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $calculation,
+        ]);
+    }
+
     /**
      * Store a newly created resource in storage.
      */
@@ -115,8 +142,6 @@ class ShipmentController extends Controller
             'service_type' => ['required', Rule::in(['regular', 'express', 'same_day', 'economy'])],
             'total_weight_kg' => ['required', 'numeric', 'min:0.1'],
             'total_volume' => ['nullable', 'numeric', 'min:0'],
-            'insurance_amount' => ['nullable', 'numeric', 'min:0'],
-            'admin_fee' => ['nullable', 'numeric', 'min:0'],
             'subtotal_amount' => ['nullable', 'numeric', 'min:0'],
             'total_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', Rule::in(['midtrans', 'cash', 'transfer', 'e_wallet'])],
@@ -125,6 +150,11 @@ class ShipmentController extends Controller
             'manual_override' => ['sometimes', 'boolean'],
             'manual_override_requires_approval' => ['sometimes', 'boolean'],
             'manual_override_reason' => ['nullable', 'string', 'max:500'],
+            'items' => ['nullable', 'array'],
+            'items.*.name' => ['required_with:items', 'string', 'max:255'],
+            'items.*.qty' => ['required_with:items', 'numeric', 'min:1'],
+            'items.*.weight' => ['required_with:items', 'numeric', 'min:0.1'],
+            'items.*.notes' => ['nullable', 'string', 'max:255'],
         ]);
 
         // Enforce branch scope for manager & kasir
@@ -148,7 +178,7 @@ class ShipmentController extends Controller
         }
 
         if ($manualOverride) {
-            foreach (['subtotal_amount', 'insurance_amount', 'admin_fee', 'total_amount'] as $field) {
+            foreach (['subtotal_amount', 'total_amount'] as $field) {
                 if (! array_key_exists($field, $validated)) {
                     throw ValidationException::withMessages([
                         $field => 'Field ini wajib diisi ketika menggunakan manual override.',
@@ -169,8 +199,6 @@ class ShipmentController extends Controller
                     $request->user(),
                     [
                         'subtotal_amount' => $validated['subtotal_amount'],
-                        'insurance_amount' => $validated['insurance_amount'],
-                        'admin_fee' => $validated['admin_fee'],
                         'total_amount' => $validated['total_amount'],
                     ],
                     $validated['manual_override_reason']
@@ -190,8 +218,6 @@ class ShipmentController extends Controller
                 $shipment = DB::transaction(function () use ($validated, $request, $shipmentService, $operationalIssueService) {
                     $shipment = $shipmentService->createShipment(array_merge($validated, [
                         'subtotal_amount' => $validated['subtotal_amount'],
-                        'insurance_amount' => $validated['insurance_amount'],
-                        'admin_fee' => $validated['admin_fee'],
                         'total_amount' => $validated['total_amount'],
                     ]), $request->user());
 
@@ -200,8 +226,6 @@ class ShipmentController extends Controller
                         $request->user(),
                         [
                             'subtotal_amount' => $validated['subtotal_amount'],
-                            'insurance_amount' => $validated['insurance_amount'],
-                            'admin_fee' => $validated['admin_fee'],
                             'total_amount' => $validated['total_amount'],
                         ],
                         $validated['manual_override_reason']
@@ -231,7 +255,7 @@ class ShipmentController extends Controller
     {
         $this->authorize('view', $shipment);
 
-        $shipment->load(['branch', 'destinationBranch', 'courier', 'status', 'items', 'payments', 'trackings.status', 'operationalProofs']);
+        $shipment->load(['branch', 'destinationBranch', 'courier', 'status', 'items', 'payments', 'trackings.status', 'trackings.proofs', 'operationalProofs']);
 
         if ($request->expectsJson()) {
             return response()->json($shipment);
@@ -311,8 +335,6 @@ class ShipmentController extends Controller
             'total_weight_kg',
             'total_volume',
             'subtotal_amount',
-            'insurance_amount',
-            'admin_fee',
             'total_amount',
             'estimated_delivery_at',
             'delivered_at',
@@ -335,8 +357,6 @@ class ShipmentController extends Controller
             'service_type' => ['nullable', Rule::in(['regular', 'express', 'same_day', 'economy'])],
             'total_weight_kg' => ['nullable', 'numeric', 'min:0.1'],
             'total_volume' => ['nullable', 'numeric', 'min:0'],
-            'insurance_amount' => ['nullable', 'numeric', 'min:0'],
-            'admin_fee' => ['nullable', 'numeric', 'min:0'],
             'subtotal_amount' => ['nullable', 'numeric', 'min:0'],
             'total_amount' => ['nullable', 'numeric', 'min:0'],
             'estimated_delivery_at' => ['nullable', 'date'],
@@ -353,7 +373,7 @@ class ShipmentController extends Controller
 
         if ($manualOverride) {
             $targetBranchId = (int) ($validated['branch_id'] ?? $shipment->branch_id);
-            $this->assertManualCorrectionPermission($actor, $targetBranchId);
+            $this->assertManualCorrectionPermission($actor, $targetBranchId, $shipment);
         }
 
         if ($manualOverride && empty($validated['manual_override_reason'])) {
@@ -385,7 +405,7 @@ class ShipmentController extends Controller
             unset($validated['destination_branch_id']);
         }
 
-        $amountFields = array_intersect_key($validated, array_flip(['branch_id', 'destination_branch_id', 'service_type', 'total_weight_kg', 'insurance_amount', 'admin_fee']));
+        $amountFields = array_intersect_key($validated, array_flip(['branch_id', 'destination_branch_id', 'service_type', 'total_weight_kg']));
 
         if (! empty($amountFields) && ! $manualOverride) {
             $recalculated = $shipmentService->calculateTotalAmount(array_merge([
@@ -394,13 +414,9 @@ class ShipmentController extends Controller
             ], [
                 'service_type' => $validated['service_type'] ?? $shipment->service_type,
                 'total_weight_kg' => $validated['total_weight_kg'] ?? $shipment->total_weight_kg,
-                'insurance_amount' => $validated['insurance_amount'] ?? $shipment->insurance_amount,
-                'admin_fee' => $validated['admin_fee'] ?? $shipment->admin_fee,
             ]));
 
             $validated['subtotal_amount'] = $recalculated['subtotal_amount'];
-            $validated['insurance_amount'] = $recalculated['insurance_amount'];
-            $validated['admin_fee'] = $recalculated['admin_fee'];
             $validated['total_amount'] = $recalculated['total_amount'];
 
             $shipment->payments()
@@ -411,12 +427,10 @@ class ShipmentController extends Controller
         if ($manualOverride && ! $manualOverrideRequiresApproval) {
             $manualAmountFields = array_intersect_key($validated, array_flip([
                 'subtotal_amount',
-                'insurance_amount',
-                'admin_fee',
                 'total_amount',
             ]));
 
-            if (count($manualAmountFields) !== 4) {
+            if (count($manualAmountFields) !== 2) {
                 throw ValidationException::withMessages([
                     'manual_override' => 'Semua field biaya wajib diisi ketika manual override aktif.',
                 ]);
@@ -450,12 +464,10 @@ class ShipmentController extends Controller
         if ($manualOverride && $manualOverrideRequiresApproval) {
             $manualAmountFields = array_intersect_key($validated, array_flip([
                 'subtotal_amount',
-                'insurance_amount',
-                'admin_fee',
                 'total_amount',
             ]));
 
-            if (count($manualAmountFields) !== 4) {
+            if (count($manualAmountFields) !== 2) {
                 throw ValidationException::withMessages([
                     'manual_override' => 'Semua field biaya wajib diisi ketika request approval override aktif.',
                 ]);
@@ -492,8 +504,6 @@ class ShipmentController extends Controller
             'total_weight_kg',
             'total_volume',
             'subtotal_amount',
-            'insurance_amount',
-            'admin_fee',
             'total_amount',
             'estimated_delivery_at',
             'delivered_at',
@@ -518,8 +528,6 @@ class ShipmentController extends Controller
                 'total_weight_kg',
                 'total_volume',
                 'subtotal_amount',
-                'insurance_amount',
-                'admin_fee',
                 'total_amount',
                 'estimated_delivery_at',
                 'delivered_at',
@@ -550,12 +558,10 @@ class ShipmentController extends Controller
         $this->authorize('requestPricingOverride', $shipment);
         $actor = $request->user();
 
-        $this->assertManualCorrectionPermission($actor, (int) $shipment->branch_id);
+        $this->assertManualCorrectionPermission($actor, (int) $shipment->branch_id, $shipment);
 
         $validated = $request->validate([
             'subtotal_amount' => ['required', 'numeric', 'min:0'],
-            'insurance_amount' => ['required', 'numeric', 'min:0'],
-            'admin_fee' => ['required', 'numeric', 'min:0'],
             'total_amount' => ['required', 'numeric', 'min:0'],
             'reason' => ['required', 'string', 'max:500'],
         ]);
@@ -565,8 +571,6 @@ class ShipmentController extends Controller
             $actor,
             [
                 'subtotal_amount' => $validated['subtotal_amount'],
-                'insurance_amount' => $validated['insurance_amount'],
-                'admin_fee' => $validated['admin_fee'],
                 'total_amount' => $validated['total_amount'],
             ],
             $validated['reason']
@@ -881,7 +885,7 @@ class ShipmentController extends Controller
         ]);
     }
 
-    private function assertManualCorrectionPermission(?User $actor, int $targetBranchId): void
+    private function assertManualCorrectionPermission(?User $actor, int $targetBranchId, ?Shipment $shipment = null): void
     {
         if (! $actor) {
             abort(403, 'Akses ditolak.');
@@ -891,11 +895,13 @@ class ShipmentController extends Controller
             return;
         }
 
-        if ($actor->role === 'kasir' && (int) $actor->branch_id === $targetBranchId) {
+        // Cek jika cabang aktor adalah cabang target (origin baru)
+        if ((int) $actor->branch_id === $targetBranchId) {
             return;
         }
 
-        if ($actor->role === 'manager' && (int) $actor->branch_id === $targetBranchId) {
+        // Cek jika cabang aktor adalah cabang tujuan saat ini
+        if ($shipment && (int) $actor->branch_id === (int) $shipment->destination_branch_id) {
             return;
         }
 

@@ -98,6 +98,42 @@
         </div>
     </div>
 
+    <!-- Items Section -->
+    <div class="grid grid-cols-1 gap-6">
+        <div class="bg-white p-8 rounded-[2.5rem] border border-slate-50 shadow-xl shadow-slate-200/40 space-y-6">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-1 h-6 bg-blue-600 rounded-full"></div>
+                <h3 class="font-black text-lg tracking-tight text-slate-900">Rincian Barang</h3>
+            </div>
+            
+            <div class="space-y-4">
+                @forelse($shipment->items as $item)
+                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                            <div class="space-y-0.5">
+                                <p class="text-xs font-black text-slate-900">{{ $item->item_name }}</p>
+                                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ $item->weight_kg }} Kg / Unit</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs font-black text-blue-600">{{ $item->quantity }} Pcs</p>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-xs text-slate-400 italic text-center py-4">Tidak ada rincian barang.</p>
+                @endforelse
+            </div>
+
+            <div class="pt-4 border-t border-slate-100 flex justify-between items-center">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Berat</p>
+                <p class="text-sm font-black text-slate-900">{{ $shipment->total_weight_kg }} Kg</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Payment Section -->
     <div>
         @if($shipment->payment_status === 'paid')
@@ -206,6 +242,21 @@
                         @if($tracking->notes)
                             <div class="p-5 bg-blue-50/30 rounded-[1.5rem] text-[10px] text-blue-600 font-bold italic border border-blue-100/30 leading-relaxed">
                                 "{{ $tracking->notes }}"
+                            </div>
+                        @endif
+
+                        @if($tracking->proofs->isNotEmpty())
+                            <div class="grid grid-cols-2 gap-3 mt-3">
+                                @foreach($tracking->proofs as $proof)
+                                    <div class="relative group tap-scale">
+                                        <a href="{{ asset('storage/' . $proof->file_path) }}" target="_blank" class="block aspect-[4/3] rounded-[1.5rem] overflow-hidden border-2 border-white shadow-sm ring-1 ring-slate-100">
+                                            <img src="{{ asset('storage/' . $proof->file_path) }}" 
+                                                 alt="Bukti Operasional" 
+                                                 class="w-full h-full object-cover">
+                                        </a>
+                                        <div class="absolute inset-0 bg-slate-900/10 pointer-events-none group-active:bg-slate-900/20 transition-colors"></div>
+                                    </div>
+                                @endforeach
                             </div>
                         @endif
                     </div>

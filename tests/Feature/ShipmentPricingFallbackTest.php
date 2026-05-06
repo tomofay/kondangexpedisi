@@ -35,8 +35,6 @@ class ShipmentPricingFallbackTest extends TestCase
             'recipient_address' => 'Jl. Tujuan No. 2',
             'service_type' => 'regular',
             'total_weight_kg' => 2,
-            'insurance_amount' => 1000,
-            'admin_fee' => 2500,
         ]);
 
         $response
@@ -92,13 +90,9 @@ class ShipmentPricingFallbackTest extends TestCase
             'total_weight_kg' => 2,
             'total_volume' => 1,
             'subtotal_amount' => 20000,
-            'insurance_amount' => 1000,
-            'admin_fee' => 2500,
-            'total_amount' => 23500,
+            'total_amount' => 20000,
             'auto_subtotal_amount' => 20000,
-            'auto_insurance_amount' => 1000,
-            'auto_admin_fee' => 2500,
-            'auto_total_amount' => 23500,
+            'auto_total_amount' => 20000,
             'payment_status' => 'pending',
             'processing_status' => 'ok',
             'processing_error' => null,
@@ -111,9 +105,7 @@ class ShipmentPricingFallbackTest extends TestCase
 
         $response = $this->actingAs($admin)->postJson(route('shipments.pricing-override.request', $shipment), [
             'subtotal_amount' => 30000,
-            'insurance_amount' => 1500,
-            'admin_fee' => 2500,
-            'total_amount' => 34000,
+            'total_amount' => 30000,
             'reason' => 'Koreksi harga setelah verifikasi dimensi aktual.',
         ]);
 
@@ -153,13 +145,9 @@ class ShipmentPricingFallbackTest extends TestCase
             'total_weight_kg' => 2,
             'total_volume' => 1,
             'subtotal_amount' => 20000,
-            'insurance_amount' => 1000,
-            'admin_fee' => 2500,
-            'total_amount' => 23500,
+            'total_amount' => 20000,
             'auto_subtotal_amount' => 20000,
-            'auto_insurance_amount' => 1000,
-            'auto_admin_fee' => 2500,
-            'auto_total_amount' => 23500,
+            'auto_total_amount' => 20000,
             'payment_status' => 'pending',
             'processing_status' => 'needs_manual_review',
             'processing_error' => 'Menunggu approval override tarif manual.',
@@ -182,9 +170,7 @@ class ShipmentPricingFallbackTest extends TestCase
                 'shipment_id' => $shipment->id,
                 'proposed_amounts' => [
                     'subtotal_amount' => 28000,
-                    'insurance_amount' => 1500,
-                    'admin_fee' => 2500,
-                    'total_amount' => 32000,
+                    'total_amount' => 28000,
                 ],
                 'reason' => 'Perlu koreksi karena mismatch dimensi aktual.',
             ],
@@ -198,15 +184,15 @@ class ShipmentPricingFallbackTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.pricing_mode', 'manual')
             ->assertJsonPath('data.pricing_approval_status', 'approved')
-            ->assertJsonPath('data.corrected_total_amount', '32000.00');
+            ->assertJsonPath('data.corrected_total_amount', '28000.00');
 
         $shipment->refresh();
         $task->refresh();
 
         $this->assertSame('manual', $shipment->pricing_mode);
         $this->assertSame('approved', $shipment->pricing_approval_status);
-        $this->assertSame((string) $shipment->auto_total_amount, '23500.00');
-        $this->assertSame((string) $shipment->corrected_total_amount, '32000.00');
+        $this->assertSame((string) $shipment->auto_total_amount, '20000.00');
+        $this->assertSame((string) $shipment->corrected_total_amount, '28000.00');
         $this->assertSame('completed', $task->status);
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'shipment.manual_override',
@@ -236,13 +222,9 @@ class ShipmentPricingFallbackTest extends TestCase
             'total_weight_kg' => 2,
             'total_volume' => 1,
             'subtotal_amount' => 20000,
-            'insurance_amount' => 1000,
-            'admin_fee' => 2500,
-            'total_amount' => 23500,
+            'total_amount' => 20000,
             'auto_subtotal_amount' => 20000,
-            'auto_insurance_amount' => 1000,
-            'auto_admin_fee' => 2500,
-            'auto_total_amount' => 23500,
+            'auto_total_amount' => 20000,
             'payment_status' => 'pending',
             'processing_status' => 'needs_manual_review',
             'processing_error' => 'Menunggu approval override tarif manual.',
@@ -265,9 +247,7 @@ class ShipmentPricingFallbackTest extends TestCase
                 'shipment_id' => $shipment->id,
                 'proposed_amounts' => [
                     'subtotal_amount' => 28000,
-                    'insurance_amount' => 1500,
-                    'admin_fee' => 2500,
-                    'total_amount' => 32000,
+                    'total_amount' => 28000,
                 ],
                 'reason' => 'Perlu koreksi karena mismatch dimensi aktual.',
             ],
@@ -281,15 +261,15 @@ class ShipmentPricingFallbackTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.pricing_mode', 'auto')
             ->assertJsonPath('data.pricing_approval_status', 'rejected')
-            ->assertJsonPath('data.total_amount', '23500.00');
+            ->assertJsonPath('data.total_amount', '20000.00');
 
         $shipment->refresh();
         $task->refresh();
 
         $this->assertSame('auto', $shipment->pricing_mode);
         $this->assertSame('rejected', $shipment->pricing_approval_status);
-        $this->assertSame((string) $shipment->total_amount, '23500.00');
-        $this->assertSame((string) $shipment->auto_total_amount, '23500.00');
+        $this->assertSame((string) $shipment->total_amount, '20000.00');
+        $this->assertSame((string) $shipment->auto_total_amount, '20000.00');
         $this->assertNull($shipment->corrected_total_amount);
         $this->assertSame('cancelled', $task->status);
         $this->assertDatabaseHas('audit_logs', [
@@ -319,10 +299,8 @@ class ShipmentPricingFallbackTest extends TestCase
             'total_weight_kg' => 1,
             'total_volume' => 1,
             'subtotal_amount' => 10000,
-            'insurance_amount' => 1000,
-            'admin_fee' => 2500,
-            'total_amount' => 13500,
-            'auto_total_amount' => 13500,
+            'total_amount' => 10000,
+            'auto_total_amount' => 10000,
             'payment_status' => 'pending',
             'pricing_mode' => 'auto',
             'pricing_approval_status' => 'pending',
@@ -344,11 +322,9 @@ class ShipmentPricingFallbackTest extends TestCase
             'total_weight_kg' => 1,
             'total_volume' => 1,
             'subtotal_amount' => 12000,
-            'insurance_amount' => 1000,
-            'admin_fee' => 2500,
-            'total_amount' => 15500,
-            'auto_total_amount' => 15500,
-            'corrected_total_amount' => 18000,
+            'total_amount' => 12000,
+            'auto_total_amount' => 12000,
+            'corrected_total_amount' => 15000,
             'payment_status' => 'pending',
             'pricing_mode' => 'manual',
             'pricing_approval_status' => 'approved',
@@ -365,7 +341,7 @@ class ShipmentPricingFallbackTest extends TestCase
             'priority' => 'high',
             'action_data' => [
                 'shipment_id' => $shipmentPending->id,
-                'current_amounts' => ['total_amount' => 13500],
+                'current_amounts' => ['total_amount' => 10000],
                 'proposed_amounts' => ['total_amount' => 15000],
             ],
         ]);
@@ -379,8 +355,8 @@ class ShipmentPricingFallbackTest extends TestCase
             'priority' => 'high',
             'action_data' => [
                 'shipment_id' => $shipmentApproved->id,
-                'current_amounts' => ['total_amount' => 15500],
-                'proposed_amounts' => ['total_amount' => 18000],
+                'current_amounts' => ['total_amount' => 12000],
+                'proposed_amounts' => ['total_amount' => 15000],
             ],
             'result' => [
                 'decision' => 'approved',

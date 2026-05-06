@@ -50,7 +50,7 @@
         <div class="bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-2xl flex items-center justify-between border border-white/10">
             <div class="flex flex-col">
                 <span class="text-[10px] font-black uppercase tracking-widest text-blue-400" x-text="selected.length + ' Paket Terpilih'"></span>
-                <p class="text-xs font-bold">Edit Jamak</p>
+                <p class="text-xs font-bold">Edit Semua</p>
             </div>
             <form action="<?php echo e(route('courier.shipments.bulk-edit')); ?>" method="GET">
                 <template x-for="id in selected">
@@ -86,6 +86,11 @@
                             <h4 class="text-lg font-black italic tracking-tighter text-blue-600 uppercase"><?php echo e($shipment->tracking_number); ?></h4>
                         </div>
                         <p class="text-xs font-bold text-slate-800 dark:text-white"><?php echo e($shipment->recipient_name); ?></p>
+                        <div class="flex items-center gap-2 py-1">
+                            <span class="text-[9px] font-black text-slate-400 uppercase truncate"><?php echo e($shipment->branch->name); ?></span>
+                            <i class="bi bi-arrow-right text-[8px] text-blue-500"></i>
+                            <span class="text-[9px] font-black text-blue-600 uppercase truncate"><?php echo e($shipment->destinationBranch->name); ?></span>
+                        </div>
                         <span class="inline-block px-3 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-[8px] font-black uppercase tracking-widest text-slate-500">
                             <?php echo e($shipment->status->name); ?>
 

@@ -81,7 +81,7 @@ class CustomerPortalController extends Controller
         $customer = $this->resolveCustomer($request);
         abort_unless((int) $shipment->customer_id === (int) $customer->id, 403);
 
-        $shipment->load(['branch', 'courier', 'status', 'items', 'payments', 'trackings.status']);
+        $shipment->load(['branch', 'courier', 'status', 'items', 'payments', 'trackings.status', 'trackings.proofs']);
 
         return view('mobile.customer.tracking', compact('shipment'));
     }
@@ -124,7 +124,6 @@ class CustomerPortalController extends Controller
                 'destination_branch_id' => $request->integer('destination_branch_id'),
                 'total_weight_kg' => $request->float('total_weight_kg'),
                 'service_type' => $request->string('service_type', 'regular'),
-                'insurance_amount' => $request->float('insurance_amount', 0),
             ]);
 
             return response()->json([

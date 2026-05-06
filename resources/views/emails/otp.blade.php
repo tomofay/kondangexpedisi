@@ -1,20 +1,28 @@
 <x-mail::message>
-# Verifikasi Keamanan
+# Konfirmasi Keamanan Akun
 
 Halo,
 
-Kami menerima permintaan untuk melakukan **{{ $type === 'password' ? 'Perubahan Password' : 'Perubahan Email' }}** pada akun Kondang Ekspedisi Anda.
+@php
+    $action = match($type) {
+        'password' => 'melakukan perubahan kata sandi',
+        'registration' => 'memverifikasi pendaftaran akun baru',
+        default => 'melakukan perubahan alamat email',
+    };
+@endphp
 
-Silakan gunakan kode OTP di bawah ini untuk melanjutkan proses verifikasi:
+Kami menerima permintaan untuk **{{ $action }}** pada sistem Kondang Ekspedisi. Untuk menjaga keamanan akun Anda, silakan gunakan kode verifikasi di bawah ini:
 
 <x-mail::panel>
-# {{ $code }}
+<div style="text-align: center; letter-spacing: 5px;">
+{{ $code }}
+</div>
 </x-mail::panel>
 
-Kode ini akan kedaluwarsa dalam **10 menit**. Jangan berikan kode ini kepada siapa pun, termasuk pihak Kondang Ekspedisi.
+Kode ini bersifat rahasia dan akan kedaluwarsa dalam **10 menit**. Mohon tidak memberikan kode ini kepada siapapun demi keamanan data Anda.
 
-Jika Anda tidak merasa melakukan permintaan ini, silakan abaikan email ini atau hubungi tim dukungan kami jika Anda merasa ada aktivitas mencurigakan.
+Jika Anda tidak merasa melakukan permintaan ini, Anda dapat mengabaikan email ini dengan aman. Keamanan akun Anda adalah prioritas kami.
 
-Terima kasih,<br>
-**Tim Kondang Ekspedisi**
+Salam hangat,<br>
+**Manajemen Kondang Ekspedisi**
 </x-mail::message>

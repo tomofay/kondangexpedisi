@@ -176,7 +176,10 @@
         }
 
         @media (max-width: 575.98px) {
-            .auth-form-side { padding: 2rem; }
+            .auth-form-side { padding: 2.5rem 1.5rem; justify-content: flex-start; }
+            .login-title { font-size: 1.8rem; }
+            .brand-logo { margin-bottom: 2rem; }
+            .auth-container { background: white; }
         }
     </style>
 </head>

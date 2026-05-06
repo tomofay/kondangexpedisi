@@ -59,6 +59,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/otp/verify', [\App\Http\Controllers\ProfileOtpController::class, 'verifyOtp'])->name('profile.otp.verify');
 
     Route::middleware('role:admin,kasir,manager,courier')->group(function () {
+        Route::get('shipments/quote', [ShipmentController::class, 'quote'])->name('shipments.quote');
         Route::resource('shipments', ShipmentController::class)->except(['create', 'edit']);
         Route::post('shipments/{shipment}/assign-courier', [ShipmentController::class, 'assignCourier'])
             ->name('shipments.assign-courier');
@@ -79,7 +80,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('role:admin,kasir,manager')->group(function () {
-        Route::get('/users', [UserManagementController::class, 'index'])->middleware('role:admin,manager');
+        Route::resource('users', UserManagementController::class)->except(['create', 'edit'])->middleware('role:admin,manager');
         Route::get('/reports/summary', [ReportController::class, 'summary'])->name('reports.summary');
         Route::get('/reports/summary/export', [ReportController::class, 'summaryExport'])->name('reports.summary.export');
         Route::get('/reports/branch-performance', [ReportController::class, 'branchPerformance'])->name('reports.branch-performance');

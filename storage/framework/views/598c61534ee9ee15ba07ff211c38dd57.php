@@ -8,13 +8,19 @@
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
-# Verifikasi Keamanan
+# Konfirmasi Keamanan Akun
 
 Halo,
 
-Kami menerima permintaan untuk melakukan **<?php echo new \Illuminate\Support\EncodedHtmlString($type === 'password' ? 'Perubahan Password' : 'Perubahan Email'); ?>** pada akun Kondang Ekspedisi Anda.
+<?php
+    $action = match($type) {
+        'password' => 'melakukan perubahan kata sandi',
+        'registration' => 'memverifikasi pendaftaran akun baru',
+        default => 'melakukan perubahan alamat email',
+    };
+?>
 
-Silakan gunakan kode OTP di bawah ini untuk melanjutkan proses verifikasi:
+Kami menerima permintaan untuk **<?php echo new \Illuminate\Support\EncodedHtmlString($action); ?>** pada sistem Kondang Ekspedisi. Untuk menjaga keamanan akun Anda, silakan gunakan kode verifikasi di bawah ini:
 
 <?php if (isset($component)) { $__componentOriginal91214b38020aa1d764d4a21e693f703c = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal91214b38020aa1d764d4a21e693f703c = $attributes; } ?>
@@ -26,8 +32,10 @@ Silakan gunakan kode OTP di bawah ini untuk melanjutkan proses verifikasi:
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
+<div style="text-align: center; letter-spacing: 5px;">
 # <?php echo new \Illuminate\Support\EncodedHtmlString($code); ?>
 
+</div>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginal91214b38020aa1d764d4a21e693f703c)): ?>
@@ -39,12 +47,12 @@ Silakan gunakan kode OTP di bawah ini untuk melanjutkan proses verifikasi:
 <?php unset($__componentOriginal91214b38020aa1d764d4a21e693f703c); ?>
 <?php endif; ?>
 
-Kode ini akan kedaluwarsa dalam **10 menit**. Jangan berikan kode ini kepada siapa pun, termasuk pihak Kondang Ekspedisi.
+Kode ini bersifat rahasia dan akan kedaluwarsa dalam **10 menit**. Mohon tidak memberikan kode ini kepada siapapun demi keamanan data Anda.
 
-Jika Anda tidak merasa melakukan permintaan ini, silakan abaikan email ini atau hubungi tim dukungan kami jika Anda merasa ada aktivitas mencurigakan.
+Jika Anda tidak merasa melakukan permintaan ini, Anda dapat mengabaikan email ini dengan aman. Keamanan akun Anda adalah prioritas kami.
 
-Terima kasih,<br>
-**Tim Kondang Ekspedisi**
+Salam hangat,<br>
+**Manajemen Kondang Ekspedisi**
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginalaa758e6a82983efcbf593f765e026bd9)): ?>

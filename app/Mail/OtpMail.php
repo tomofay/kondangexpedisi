@@ -31,7 +31,11 @@ class OtpMail extends Mailable
      */
     public function envelope(): Envelope
     {
-        $action = $this->type === 'password' ? 'Perubahan Password' : 'Perubahan Email';
+        $action = match($this->type) {
+            'password' => 'Perubahan Password',
+            'registration' => 'Pendaftaran Akun',
+            default => 'Perubahan Email',
+        };
         return new Envelope(
             subject: "Kode Verifikasi OTP: $action - Kondang Ekspedisi",
         );

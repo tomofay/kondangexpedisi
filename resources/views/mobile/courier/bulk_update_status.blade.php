@@ -62,13 +62,18 @@
                 </div>
                 <div class="flex flex-wrap gap-2 pt-2">
                     @foreach($shipments->take(5) as $s)
-                        <div class="px-3 py-1 bg-white/5 rounded-lg border border-white/10 text-[8px] font-bold text-slate-400">
-                            {{ $s->tracking_number }}
+                        <div class="px-3 py-2 bg-white/5 rounded-xl border border-white/10 space-y-1">
+                            <div class="text-[8px] font-black text-blue-400 tracking-widest">{{ $s->tracking_number }}</div>
+                            <div class="flex items-center gap-1.5 opacity-60">
+                                <span class="text-[7px] font-bold text-slate-400 uppercase truncate max-w-[40px]">{{ $s->branch->name }}</span>
+                                <i class="bi bi-arrow-right text-[6px] text-blue-500"></i>
+                                <span class="text-[7px] font-bold text-white uppercase truncate max-w-[40px]">{{ $s->destinationBranch->name }}</span>
+                            </div>
                         </div>
                     @endforeach
                     @if($shipments->count() > 5)
-                        <div class="px-3 py-1 bg-white/5 rounded-lg border border-white/10 text-[8px] font-bold text-blue-400">
-                            +{{ $shipments->count() - 5 }} lainnya
+                        <div class="px-3 py-2 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center">
+                            <span class="text-[8px] font-black text-blue-400">+{{ $shipments->count() - 5 }} lainnya</span>
                         </div>
                     @endif
                 </div>

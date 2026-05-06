@@ -164,8 +164,6 @@ class OperationalIssueService
     {
         $before = $shipment->only([
             'subtotal_amount',
-            'insurance_amount',
-            'admin_fee',
             'total_amount',
             'processing_status',
             'pricing_mode',
@@ -173,8 +171,6 @@ class OperationalIssueService
 
         $shipment->forceFill([
             'subtotal_amount' => $attributes['subtotal_amount'],
-            'insurance_amount' => $attributes['insurance_amount'],
-            'admin_fee' => $attributes['admin_fee'],
             'total_amount' => $attributes['total_amount'],
                 'corrected_total_amount' => $attributes['total_amount'],
             'processing_status' => 'ok',
@@ -200,8 +196,6 @@ class OperationalIssueService
             $before,
             $shipment->fresh()->only([
                 'subtotal_amount',
-                'insurance_amount',
-                'admin_fee',
                 'total_amount',
                 'processing_status',
                 'pricing_mode',
@@ -245,7 +239,7 @@ class OperationalIssueService
             if (isset($attributes['amount']) && (float)$attributes['amount'] !== (float)$before['amount']) {
                 $shipment->forceFill([
                     'total_amount' => $attributes['amount'],
-                    'subtotal_amount' => $attributes['amount'] - ($shipment->insurance_amount + $shipment->admin_fee),
+                    'subtotal_amount' => $attributes['amount'],
                     'manual_override_reason' => trim(($shipment->manual_override_reason ? $shipment->manual_override_reason . ' ' : '') . 'Sync from payment manual override: ' . $reason),
                 ])->save();
             }

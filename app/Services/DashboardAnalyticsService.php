@@ -195,9 +195,18 @@ class DashboardAnalyticsService
                 $paymentQuery->whereRaw('1 = 0');
                 $trackingQuery->whereRaw('1 = 0');
             } else {
-                $shipmentQuery->where('shipments.branch_id', $user->branch_id);
-                $paymentQuery->whereHas('shipment', fn ($query) => $query->where('shipments.branch_id', $user->branch_id));
-                $trackingQuery->whereHas('shipment', fn ($query) => $query->where('shipments.branch_id', $user->branch_id));
+                $shipmentQuery->where(function ($q) use ($user) {
+                    $q->where('shipments.branch_id', $user->branch_id)
+                      ->orWhere('shipments.destination_branch_id', $user->branch_id);
+                });
+                $paymentQuery->whereHas('shipment', fn ($q) => $q->where(function ($sq) use ($user) {
+                    $sq->where('shipments.branch_id', $user->branch_id)
+                       ->orWhere('shipments.destination_branch_id', $user->branch_id);
+                }));
+                $trackingQuery->whereHas('shipment', fn ($q) => $q->where(function ($sq) use ($user) {
+                    $sq->where('shipments.branch_id', $user->branch_id)
+                       ->orWhere('shipments.destination_branch_id', $user->branch_id);
+                }));
             }
         }
 

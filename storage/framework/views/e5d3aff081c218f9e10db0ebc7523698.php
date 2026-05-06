@@ -96,6 +96,42 @@
         </div>
     </div>
 
+    <!-- Items Section -->
+    <div class="grid grid-cols-1 gap-6">
+        <div class="bg-white p-8 rounded-[2.5rem] border border-slate-50 shadow-xl shadow-slate-200/40 space-y-6">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-1 h-6 bg-blue-600 rounded-full"></div>
+                <h3 class="font-black text-lg tracking-tight text-slate-900">Rincian Barang</h3>
+            </div>
+            
+            <div class="space-y-4">
+                <?php $__empty_1 = true; $__currentLoopData = $shipment->items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                            <div class="space-y-0.5">
+                                <p class="text-xs font-black text-slate-900"><?php echo e($item->item_name); ?></p>
+                                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest"><?php echo e($item->weight_kg); ?> Kg / Unit</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs font-black text-blue-600"><?php echo e($item->quantity); ?> Pcs</p>
+                        </div>
+                    </div>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                    <p class="text-xs text-slate-400 italic text-center py-4">Tidak ada rincian barang.</p>
+                <?php endif; ?>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100 flex justify-between items-center">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Berat</p>
+                <p class="text-sm font-black text-slate-900"><?php echo e($shipment->total_weight_kg); ?> Kg</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Payment Section -->
     <div>
         <?php if($shipment->payment_status === 'paid'): ?>

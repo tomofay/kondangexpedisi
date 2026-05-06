@@ -91,8 +91,7 @@
                     <a href="{{ route('landing') }}" class="text-decoration-none">
                         <div class="brand-font h4 text-primary-emphasis mb-3">Kondang Ekspedisi</div>
                     </a>
-
-                    <span class="brand-chip mb-3">Pemulihan Akun</span>
+                    
                     <h1 class="brand-font h3 mb-2 text-primary-emphasis">Lupa Password</h1>
                     <p class="text-secondary small mb-4">Masukkan email akun Anda. Kami akan kirim tautan reset password ke email tersebut.</p>
 

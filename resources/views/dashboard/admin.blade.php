@@ -162,6 +162,28 @@
         .swal2-confirm { background-color: #6366F1 !important; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important; border-radius: 12px !important; font-weight: 700 !important; }
         .swal2-cancel { border-radius: 12px !important; font-weight: 700 !important; }
         .swal2-popup { border-radius: 24px !important; }
+
+        /* Responsive Optimization */
+        @media (max-width: 991.98px) {
+            .dashboard-container { padding: 1rem; }
+            .card-pro { border-radius: 16px; padding: 1.25rem !important; }
+            .chart-container { height: 250px; }
+            .view-section > div:first-child { flex-direction: column; align-items: flex-start !important; gap: 1rem; }
+            .view-section > div:first-child > div:last-child { width: 100%; flex-wrap: wrap; gap: 0.75rem; }
+            .view-section > div:first-child > div:last-child > * { flex-grow: 1; margin: 0 !important; }
+            .view-section > div:first-child > div:last-child .input-group { width: 100% !important; }
+            .view-section > div:first-child > div:last-child input, 
+            .view-section > div:first-child > div:last-child select { width: 100% !important; }
+        }
+
+        @media (max-width: 767.98px) {
+            .filter-pill-container { overflow-x: auto; white-space: nowrap; max-width: calc(100vw - 3rem); padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
+            .filter-pill-container::-webkit-scrollbar { display: none; }
+            .table-modern td, .table-modern th { padding: 0.8rem 0.6rem; font-size: 0.8rem; }
+            .status-pill { padding: 4px 10px; font-size: 0.7rem; }
+            .btn-action-sm { width: 32px; height: 32px; }
+            .h4 { font-size: 1.25rem; }
+        }
     </style>
 
     <x-slot name="header">
@@ -1769,6 +1791,15 @@
                                     <i class="bi bi-info-circle text-info" style="font-size: 0.75rem; margin-top: 2px;"></i>
                                     <span>${escapeHtml(t.notes)}</span>
                                 </div>` : ''}
+                                ${(t.proofs || []).length > 0 ? `
+                                    <div class="mt-2 d-flex gap-2 flex-wrap">
+                                        ${t.proofs.map(p => `
+                                            <a href="/storage/${p.file_path}" target="_blank" class="d-block rounded-3 border overflow-hidden shadow-sm hover-scale" style="width: 80px; height: 60px;">
+                                                <img src="/storage/${p.file_path}" class="w-100 h-100 object-fit-cover" alt="Proof">
+                                            </a>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
                             </div>
                         `;
                     });

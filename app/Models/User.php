@@ -36,6 +36,7 @@ class User extends Authenticatable
         'last_activity_at',
         'last_login_ip',
         'permissions',
+        'email_verified_at',
     ];
 
     /**

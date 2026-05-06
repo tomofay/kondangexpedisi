@@ -8,6 +8,9 @@
 <?php $attributes = $attributes->except(\App\View\Components\AppLayout::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
+    <?php $__env->startPush('scripts'); ?>
+    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="<?php echo e(config('services.midtrans.client_key')); ?>"></script>
+    <?php $__env->stopPush(); ?>
     <style>
         .dashboard-container {
             padding: 1.5rem;
@@ -446,35 +449,47 @@
             const loadOverviewData = async () => {
                 try {
                     const { data } = await axios.get('/dashboard/data');
-                    document.getElementById('metric-shipments').innerText = data.shipments_today;
-                    document.getElementById('metric-revenue').innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.revenue_total);
-                    document.getElementById('metric-approvals').innerText = data.outstanding_payments;
-                    document.getElementById('metric-errors').innerText = data.service_reliability.critical_error_count;
+                    const mShipments = document.getElementById('metric-shipments');
+                    if (mShipments) mShipments.innerText = data.shipments_today || 0;
+                    const mRevenue = document.getElementById('metric-revenue');
+                    if (mRevenue) mRevenue.innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.revenue_total || 0);
+                    const mApprovals = document.getElementById('metric-approvals');
+                    if (mApprovals) mApprovals.innerText = data.outstanding_payments || 0;
+                    const mErrors = document.getElementById('metric-errors');
+                    if (mErrors) mErrors.innerText = data.service_reliability?.critical_error_count || 0;
 
                     // Load Recent Activity
-                    document.getElementById('recent-activity-body').innerHTML = (data.trackings_recent || []).map(t => `
-                        <tr>
-                            <td class="text-muted small">${escapeHtml(new Date(t.event_at).toLocaleTimeString())}</td>
-                            <td><span class="badge bg-primary-light text-primary rounded-pill px-2" style="font-size:0.7rem; background: #EEF2FF; color: #6366F1 !important;">${escapeHtml(t.status.name)}</span></td>
-                            <td><small class="fw-bold">${escapeHtml(t.shipment.tracking_number)}</small></td>
-                        </tr>
-                    `).join('') || '<tr><td colspan="3" class="text-center py-3">Belum ada aktivitas.</td></tr>';
+                    const activityBody = document.getElementById('recent-activity-body');
+                    if (activityBody) {
+                        activityBody.innerHTML = (data.trackings_recent || []).map(t => `
+                            <tr>
+                                <td class="text-muted small">${escapeHtml(new Date(t.event_at).toLocaleTimeString())}</td>
+                                <td><span class="badge bg-primary-light text-primary rounded-pill px-2" style="font-size:0.7rem; background: #EEF2FF; color: #6366F1 !important;">${escapeHtml(t.status?.name || 'Unknown')}</span></td>
+                                <td><small class="fw-bold">${escapeHtml(t.shipment?.tracking_number || '-')}</small></td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="3" class="text-center py-3">Belum ada aktivitas.</td></tr>';
+                    }
 
                     // Load Integration Health
-                    document.getElementById('integration-health-list').innerHTML = (data.service_reliability.integration_statuses || []).map(s => `
-                        <div class="d-flex justify-content-between align-items-center p-3 rounded-4 bg-light border shadow-sm">
-                            <div class="d-flex align-items-center gap-2">
-                                <div style="width:10px; height:10px; border-radius:50%; background:${s.status === 'healthy' ? '#10B981' : '#F59E0B'}"></div>
-                                <span class="fw-bold text-uppercase small" style="font-size:0.7rem">${escapeHtml(s.service_name)}</span>
+                    const integrationList = document.getElementById('integration-health-list');
+                    if (integrationList) {
+                        integrationList.innerHTML = (data.service_reliability?.integration_statuses || []).map(s => `
+                            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 bg-light border shadow-sm">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div style="width:10px; height:10px; border-radius:50%; background:${s.status === 'healthy' ? '#10B981' : '#F59E0B'}"></div>
+                                    <span class="fw-bold text-uppercase small" style="font-size:0.7rem">${escapeHtml(s.service_name)}</span>
+                                </div>
+                                <span class="badge bg-white text-dark border rounded-pill small">${escapeHtml(s.success_count)} Transaksi</span>
                             </div>
-                            <span class="badge bg-white text-dark border rounded-pill small">${escapeHtml(s.success_count)} Transaksi</span>
-                        </div>
-                    `).join('');
+                        `).join('');
+                    }
 
                     if (data.shipment_statuses) {
                         const sel = document.getElementById('filter-shipment-status');
-                        sel.innerHTML = '<option value="">All Status</option>' + 
-                            data.shipment_statuses.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+                        if (sel) {
+                            sel.innerHTML = '<option value="">All Status</option>' + 
+                                data.shipment_statuses.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+                        }
                     }
 
                     // Sync state from dashboard data
@@ -501,35 +516,41 @@
             };
 
             const renderCharts = (data) => {
-                const trendCtx = document.getElementById('chart-main-trend').getContext('2d');
-                new Chart(trendCtx, {
-                    type: 'line',
-                    data: {
-                        labels: data.financial_control?.settlement_trend_daily.map(i => i.period) || [],
-                        datasets: [{
-                            label: 'Settlement Amount',
-                            data: data.financial_control?.settlement_trend_daily.map(i => i.amount) || [],
-                            borderColor: '#6366F1',
-                            backgroundColor: 'rgba(99, 102, 241, 0.05)',
-                            fill: true, tension: 0.4
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-                });
+                const trendEl = document.getElementById('chart-main-trend');
+                if (trendEl) {
+                    const trendCtx = trendEl.getContext('2d');
+                    new Chart(trendCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.financial_control?.settlement_trend_daily.map(i => i.period) || [],
+                            datasets: [{
+                                label: 'Settlement Amount',
+                                data: data.financial_control?.settlement_trend_daily.map(i => i.amount) || [],
+                                borderColor: '#6366F1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                                fill: true, tension: 0.4
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    });
+                }
 
-                const statusCtx = document.getElementById('chart-status-pie').getContext('2d');
-                new Chart(statusCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: data.status_breakdown.map(i => i.name),
-                        datasets: [{
-                            data: data.status_breakdown.map(i => i.total),
-                            backgroundColor: ['#6366F1', '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#6B778C'],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } }
-                });
+                const statusEl = document.getElementById('chart-status-pie');
+                if (statusEl) {
+                    const statusCtx = statusEl.getContext('2d');
+                    new Chart(statusCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: (data.status_breakdown || []).map(i => i.name),
+                            datasets: [{
+                                data: (data.status_breakdown || []).map(i => i.total),
+                                backgroundColor: ['#6366F1', '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#6B778C'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } }
+                    });
+                }
             };
 
             let debounceTimer;
@@ -563,6 +584,13 @@
                                     <td>
                                         <div class="fw-extrabold text-primary" style="font-size: 1rem;">${escapeHtml(item.tracking_number)}</div>
                                         <div class="badge bg-light text-dark border-0 mt-1" style="font-size:0.6rem; letter-spacing: 0.5px;">${escapeHtml(item.service_type.toUpperCase())}</div>
+                                        <div class="mt-2 d-flex flex-wrap gap-1">
+                                            ${(item.items || []).map(i => `
+                                                <span class="badge rounded-pill bg-white text-dark border shadow-sm" style="font-size: 0.6rem; font-weight: 600;">
+                                                    <i class="bi bi-box-seam text-primary me-1"></i>${escapeHtml(i.item_name)} (${i.quantity}) - ${i.weight_kg}kg
+                                                </span>
+                                            `).join('') || '<span class="text-muted small italic">No Items</span>'}
+                                        </div>
                                     </td>
                                     <td>
                                         <div class="small fw-bold text-dark">${escapeHtml(item.sender_name)}</div>
@@ -622,6 +650,11 @@
                                     </td>
                                     <td class="text-end">
                                         <div class="d-flex justify-content-end gap-2">
+                                            ${['failed', 'expire', 'cancel', 'pending'].includes(item.status) ? `
+                                                <button class="btn-action-sm btn-history" title="Proses Bayar" onclick="handleRetryPayment(${item.shipment_id})">
+                                                    <i class="bi bi-credit-card"></i>
+                                                </button>
+                                            ` : ''}
                                             <button class="btn-action-sm btn-edit shadow-sm" onclick="handleEditPayment(${item.id})"><i class="bi bi-pencil-square"></i></button>
                                         </div>
                                     </td>
@@ -635,44 +668,54 @@
             // SHIPMENT HANDLERS
             window.handleAddShipment = async () => {
                 const userBranchId = <?php echo e(auth()->user()->branch_id); ?>;
+                let items = [{ id: Date.now(), name: '', qty: 1, weight: 0.1, notes: '' }];
+                
                 const { value: formValues } = await Swal.fire({
                     title: 'Tambah Shipment Baru',
+                    width: '800px',
                     html: `
                         <div class="text-start" style="font-size: 0.85rem;">
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Pengirim</label>
-                                    <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6 border-end">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-person-fill me-2"></i>Informasi Pengirim</h6>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Nama Pengirim</label>
+                                        <input id="swal-s-name" class="form-control form-control-sm" placeholder="Nama">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">HP Pengirim</label>
+                                        <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Alamat Pengirim</label>
+                                        <textarea id="swal-s-addr" class="form-control form-control-sm" rows="2"></textarea>
+                                    </div>
                                 </div>
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">HP Pengirim</label>
-                                    <input id="swal-s-phone" class="form-control form-control-sm" placeholder="0812...">
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-geo-alt-fill me-2"></i>Informasi Penerima</h6>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Nama Penerima</label>
+                                        <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">HP Penerima</label>
+                                        <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fw-bold mb-1">Alamat Penerima</label>
+                                        <textarea id="swal-r-addr" class="form-control form-control-sm" rows="2"></textarea>
+                                    </div>
                                 </div>
                             </div>
-                            <label class="fw-bold mb-1">Alamat Pengirim</label>
-                            <textarea id="swal-s-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Penerima</label>
-                                    <input id="swal-r-name" class="form-control form-control-sm" placeholder="Nama">
-                                </div>
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">HP Penerima</label>
-                                    <input id="swal-r-phone" class="form-control form-control-sm" placeholder="0812...">
-                                </div>
-                            </div>
-                            <label class="fw-bold mb-1">Alamat Penerima</label>
-                            <textarea id="swal-r-addr" class="form-control form-control-sm mb-2" rows="2"></textarea>
 
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
+                            <div class="row g-2 mb-3 p-3 bg-light rounded-4">
+                                <div class="col-md-4">
                                     <label class="fw-bold mb-1">Cabang Tujuan</label>
                                     <select id="swal-dest" class="form-select form-select-sm">
                                         ${state.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
                                     </select>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-md-4">
                                     <label class="fw-bold mb-1">Layanan</label>
                                     <select id="swal-service" class="form-select form-select-sm">
                                         <option value="regular">REGULAR</option>
@@ -681,19 +724,125 @@
                                         <option value="economy">ECONOMY</option>
                                     </select>
                                 </div>
+                                <div class="col-md-4">
+                                    <label class="fw-bold mb-1 text-primary">Total Berat (Kg)</label>
+                                    <input id="swal-weight" class="form-control form-control-sm fw-bold border-primary" type="number" step="0.1" value="0.1" readonly>
+                                </div>
                             </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Berat (Kg)</label>
-                                    <input id="swal-weight" class="form-control form-control-sm" type="number" step="0.1" value="1">
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-bold m-0"><i class="bi bi-list-check me-2"></i>Daftar Item</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="window.addSwalItem()">
+                                        <i class="bi bi-plus-lg me-1"></i>Tambah Item
+                                    </button>
                                 </div>
-                                <div class="col-6">
-                                    <label class="fw-bold mb-1">Notes</label>
-                                    <input id="swal-notes" class="form-control form-control-sm">
+                                <div id="swal-items-container" class="border rounded-4 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
+                                    <!-- Items rendered here -->
                                 </div>
+                            </div>
+
+                            <div id="swal-pricing-preview" class="p-3 rounded-4 bg-primary text-white d-flex justify-content-between align-items-center shadow-sm">
+                                <div class="small fw-bold text-uppercase">Estimasi Biaya Pengiriman</div>
+                                <div class="h4 fw-bold mb-0" id="swal-quote-amount">Rp -</div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="fw-bold mb-1 small">Catatan Tambahan</label>
+                                <input id="swal-notes" class="form-control form-control-sm" placeholder="Opsional...">
                             </div>
                         </div>
                     `,
+                    didOpen: () => {
+                        window.renderSwalItems = () => {
+                            const container = document.getElementById('swal-items-container');
+                            container.innerHTML = items.map((item, index) => `
+                                <div class="row g-2 mb-2 align-items-end border-bottom pb-2">
+                                    <div class="col-4">
+                                        <label class="small fw-bold">Nama Barang</label>
+                                        <input class="form-control form-control-sm item-input" data-index="${index}" data-field="name" value="${escapeHtml(item.name)}" placeholder="cth: Baju">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="small fw-bold">Qty</label>
+                                        <input type="number" class="form-control form-control-sm item-input" data-index="${index}" data-field="qty" value="${item.qty}" min="1">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="small fw-bold">Berat (Kg)</label>
+                                        <input type="number" step="0.1" class="form-control form-control-sm item-input" data-index="${index}" data-field="weight" value="${item.weight}" min="0.1">
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="small fw-bold">Catatan</label>
+                                        <input class="form-control form-control-sm item-input" data-index="${index}" data-field="notes" value="${escapeHtml(item.notes)}">
+                                    </div>
+                                    <div class="col-1 text-end">
+                                        <button type="button" class="btn btn-sm text-danger p-1" onclick="window.removeSwalItem(${index})">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('');
+                            
+                            container.querySelectorAll('.item-input').forEach(input => {
+                                input.addEventListener('change', (e) => {
+                                    const idx = e.target.dataset.index;
+                                    const field = e.target.dataset.field;
+                                    items[idx][field] = field === 'qty' || field === 'weight' ? parseFloat(e.target.value) : e.target.value;
+                                    window.recalculateTotals();
+                                });
+                            });
+                            window.recalculateTotals();
+                        };
+
+                        window.addSwalItem = () => {
+                            items.push({ id: Date.now(), name: '', qty: 1, weight: 0.1, notes: '' });
+                            window.renderSwalItems();
+                        };
+
+                        window.removeSwalItem = (index) => {
+                            if (items.length <= 1) return;
+                            items.splice(index, 1);
+                            window.renderSwalItems();
+                        };
+
+                        window.recalculateTotals = () => {
+                            const totalWeight = items.reduce((sum, item) => sum + (item.weight * item.qty), 0);
+                            document.getElementById('swal-weight').value = totalWeight.toFixed(1);
+                            window.updateQuote();
+                        };
+
+                        let quoteDebounceTimer;
+                        window.updateQuote = () => {
+                            clearTimeout(quoteDebounceTimer);
+                            quoteDebounceTimer = setTimeout(async () => {
+                                const destId = document.getElementById('swal-dest').value;
+                                const service = document.getElementById('swal-service').value;
+                                const weight = document.getElementById('swal-weight').value;
+                                const quoteEl = document.getElementById('swal-quote-amount');
+
+                                if (!destId || !weight) return;
+
+                                quoteEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menghitung...';
+                                try {
+                                    const { data } = await axios.get('/shipments/quote', {
+                                        params: {
+                                            branch_id: userBranchId,
+                                            destination_branch_id: destId,
+                                            total_weight_kg: weight,
+                                            service_type: service
+                                        }
+                                    });
+                                    quoteEl.innerText = 'Rp' + new Intl.NumberFormat('id-ID').format(data.data.total_amount);
+                                } catch (e) {
+                                    quoteEl.innerText = 'Error';
+                                }
+                            }, 400);
+                        };
+
+                        ['swal-dest', 'swal-service'].forEach(id => {
+                            document.getElementById(id).addEventListener('change', window.updateQuote);
+                        });
+
+                        window.renderSwalItems();
+                    },
                     showCancelButton: true,
                     confirmButtonText: 'Simpan Shipment',
                     preConfirm: () => {
@@ -708,6 +857,7 @@
                             recipient_address: document.getElementById('swal-r-addr').value,
                             service_type: document.getElementById('swal-service').value,
                             total_weight_kg: document.getElementById('swal-weight').value,
+                            items: items,
                             notes: document.getElementById('swal-notes').value
                         }
                     }
@@ -765,6 +915,17 @@
                                     <input id="swal-tracking-notes" class="form-control form-control-sm" placeholder="Catatan tracking" value="Status diperbarui oleh Kasir">
                                 </div>
                                 <hr class="my-2">
+                                <div class="mb-3">
+                                    <label class="fw-bold mb-1 small text-primary"><i class="bi bi-box-seam me-2"></i>Isi Paket (Read-only)</label>
+                                    <div class="p-2 rounded-3 bg-light border shadow-sm">
+                                        ${(s.items || []).map(i => `
+                                            <div class="d-flex justify-content-between small border-bottom mb-1 pb-1">
+                                                <span>${escapeHtml(i.item_name)}</span>
+                                                <span class="fw-bold">${i.quantity} pcs - ${i.weight_kg}kg</span>
+                                            </div>
+                                        `).join('') || '<div class="text-muted small">Tidak ada rincian barang.</div>'}
+                                    </div>
+                                </div>
                                 <label class="fw-bold mb-1">Penerima</label>
                                 <input id="swal-r-name" class="form-control form-control-sm mb-2" value="${escapeHtml(s.recipient_name || '')}">
                                 <label class="fw-bold mb-1">HP Penerima</label>
@@ -829,6 +990,20 @@
                     const trackings = s.trackings || [];
                     
                     let historyHtml = '<div class="text-start" style="font-size: 0.85rem;">';
+                    
+                    historyHtml += `
+                        <div class="mb-4 p-3 bg-light rounded-4 border">
+                            <h6 class="fw-bold mb-2 small text-primary"><i class="bi bi-box-seam me-2"></i>Rincian Barang</h6>
+                            <div class="d-flex flex-wrap gap-1">
+                                ${(s.items || []).map(i => `
+                                    <span class="badge bg-white text-dark border px-2 py-1" style="font-size: 0.65rem;">
+                                        ${escapeHtml(i.item_name)} (${i.quantity} pcs) - ${i.weight_kg}kg
+                                    </span>
+                                `).join('') || '<span class="text-muted italic">Tidak ada rincian</span>'}
+                            </div>
+                        </div>
+                    `;
+
                     if (trackings.length === 0) {
                         historyHtml += '<p class="text-center text-muted py-3">Belum ada riwayat tracking.</p>';
                     } else {
@@ -889,31 +1064,26 @@
                                 <label class="small fw-bold">Status</label>
                                 <select id="swal-status" class="form-select mb-3">
                                     <option value="pending" ${data.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="settlement" ${data.status === 'settlement' ? 'selected' : ''}>Settlement</option>
+                                    <option value="settlement" ${data.status === 'settlement' ? 'selected' : ''}>Settlement (Lunas)</option>
                                     <option value="cancel" ${data.status === 'cancel' ? 'selected' : ''}>Cancel</option>
                                 </select>
-                                <label class="small fw-bold">Alasan Perubahan</label>
-                                <textarea id="swal-reason" class="form-control" placeholder="Wajib diisi untuk approval manager..."></textarea>
+                                <label class="small fw-bold">Catatan</label>
+                                <textarea id="swal-notes" class="form-control" placeholder="Tambahkan catatan jika perlu...">${escapeHtml(data.notes || '')}</textarea>
                             </div>
                         `,
                         showCancelButton: true,
-                        confirmButtonText: 'Ajukan Approval',
+                        confirmButtonText: 'Simpan Perubahan',
                         preConfirm: () => {
                             const method = document.getElementById('swal-method').value;
                             const status = document.getElementById('swal-status').value;
-                            const reason = document.getElementById('swal-reason').value;
-                            if (!reason) return Swal.showValidationMessage('Alasan wajib diisi!');
-                            return { method, status, reason };
+                            const notes = document.getElementById('swal-notes').value;
+                            return { method, status, notes };
                         }
                     });
 
                     if (formValues) {
-                        const res = await axios.put(`/payments/${id}`, formValues);
-                        if (res.status === 202) {
-                            Swal.fire('Menunggu Approval', res.data.message, 'info');
-                        } else {
-                            Swal.fire('Berhasil', 'Pembayaran diperbarui.', 'success');
-                        }
+                        await axios.put(`/payments/${id}`, formValues);
+                        Swal.fire('Berhasil', 'Pembayaran diperbarui.', 'success');
                         loadViewData('view-payments');
                     }
                 } catch (error) { Swal.fire('Error', error.response?.data?.message || 'Gagal memproses', 'error'); }
@@ -921,6 +1091,38 @@
 
             window.handleDeletePayment = (id) => {
                 // Feature removed for Kasir as per request
+            };
+            
+            window.handleRetryPayment = async (shipmentId) => {
+                try {
+                    Swal.fire({
+                        title: 'Memproses...',
+                        text: 'Sedang menyiapkan pembayaran',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+
+                    const { data } = await axios.post(`/payments/${shipmentId}/midtrans/snap-token`);
+                    
+                    if (window.snap) {
+                        window.snap.pay(data.data.snap_token, {
+                            onSuccess: (result) => {
+                                Swal.fire('Berhasil', 'Pembayaran berhasil dikonfirmasi.', 'success').then(() => loadViewData('view-payments'));
+                            },
+                            onPending: (result) => {
+                                Swal.fire('Info', 'Pembayaran sedang diproses.', 'info').then(() => loadViewData('view-payments'));
+                            },
+                            onError: (result) => {
+                                Swal.fire('Error', 'Pembayaran gagal.', 'error');
+                            }
+                        });
+                    } else {
+                        window.open(data.data.snap_redirect_url, '_blank');
+                        Swal.fire('Info', 'Popup pembayaran dibuka di tab baru.', 'info').then(() => loadViewData('view-payments'));
+                    }
+                } catch (error) {
+                    Swal.fire('Error', error.response?.data?.message || 'Gagal memulai pembayaran.', 'error');
+                }
             };
 
             navLinks.forEach(link => {

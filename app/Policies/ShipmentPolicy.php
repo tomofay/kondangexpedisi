@@ -28,9 +28,10 @@ class ShipmentPolicy
             return (int) $shipment->courier_id === (int) $user->id;
         }
 
-        // Manager & kasir hanya bisa lihat shipment di cabangnya
+        // Manager & kasir bisa lihat shipment di cabang asal ATAU tujuan
         if (in_array($user->role, ['manager', 'kasir'], true)) {
-            return (int) $shipment->branch_id === (int) $user->branch_id;
+            return (int) $shipment->branch_id === (int) $user->branch_id 
+                || (int) $shipment->destination_branch_id === (int) $user->branch_id;
         }
 
         // Customer hanya bisa lihat shipment miliknya sendiri
@@ -55,14 +56,16 @@ class ShipmentPolicy
             return false;
         }
 
-        // Manager bisa update langsung di cabangnya
+        // Manager bisa update langsung di cabang asal atau tujuan
         if ($user->role === 'manager') {
-            return (int) $shipment->branch_id === (int) $user->branch_id;
+            return (int) $shipment->branch_id === (int) $user->branch_id
+                || (int) $shipment->destination_branch_id === (int) $user->branch_id;
         }
 
         // Kasir bisa "update" tapi controller akan redirect ke approval flow
         if ($user->role === 'kasir') {
-            return (int) $shipment->branch_id === (int) $user->branch_id;
+            return (int) $shipment->branch_id === (int) $user->branch_id
+                || (int) $shipment->destination_branch_id === (int) $user->branch_id;
         }
 
         // Courier bisa update status via mobile API
@@ -100,9 +103,10 @@ class ShipmentPolicy
 
     public function delete(User $user, Shipment $shipment): bool
     {
-        // Manager & Kasir bisa delete di cabangnya
+        // Manager & Kasir bisa delete di cabang asal atau tujuan
         if (in_array($user->role, ['manager', 'kasir'], true)) {
-            return (int) $shipment->branch_id === (int) $user->branch_id;
+            return (int) $shipment->branch_id === (int) $user->branch_id
+                || (int) $shipment->destination_branch_id === (int) $user->branch_id;
         }
 
         return false;
@@ -111,7 +115,8 @@ class ShipmentPolicy
     public function restore(User $user, Shipment $shipment): bool
     {
         return $user->role === 'manager'
-            && (int) $shipment->branch_id === (int) $user->branch_id;
+            && ((int) $shipment->branch_id === (int) $user->branch_id 
+                || (int) $shipment->destination_branch_id === (int) $user->branch_id);
     }
 
     public function forceDelete(User $user, Shipment $shipment): bool

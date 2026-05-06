@@ -72,6 +72,21 @@
                     </div>
 
                     <div class="space-y-6 border-t border-slate-100 dark:border-slate-800/50 pt-6">
+                        <!-- Route Info -->
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="flex-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Asal</p>
+                                <p class="text-[10px] font-black text-slate-700 dark:text-slate-200 truncate">{{ $task->branch->name }}</p>
+                            </div>
+                            <div class="text-blue-600 animate-pulse">
+                                <i class="bi bi-arrow-right text-lg"></i>
+                            </div>
+                            <div class="flex-1 p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-2xl border border-blue-100/50 dark:border-blue-900/30">
+                                <p class="text-[8px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">Tujuan</p>
+                                <p class="text-[10px] font-black text-blue-700 dark:text-blue-200 truncate">{{ $task->destinationBranch->name }}</p>
+                            </div>
+                        </div>
+
                         <div class="flex items-start gap-4">
                             <div class="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
                                 <i class="bi bi-geo-alt-fill text-blue-600 fs-5"></i>
